@@ -134,7 +134,9 @@ $ tree -L 2
 6 directories, 22 files
 ```
 
-The PIP basis of A<sub>4</sub>B system can be found in `fortran` directory and the Python wrapper module is in `python` directory.
+The PIP basis of A<sub>4</sub>B system can be found in `fortran` directory and the Python wrapper module is in `python` directory. 
+
+Remember to copy the built Python library (be like `msa.cpython-310-x86_64-linux-gnu.so`) to `src/` folder if you want to try this tutorial.
 
 ### 2. Prepare data
 
