@@ -158,6 +158,34 @@ For the potential energy, simply write the data into a plain text file. Make sur
 
 Here exists a dataset of CH<sub>4</sub> molecule in directory [`rawdata`](https://github.com/CQPES/cqpes-legacy/tree/main/rawdata).
 
+To prepare the data for training, configurations should be given in a json file like [`config/prepare.json`](https://github.com/CQPES/cqpes-legacy/blob/main/config/prepare.json).
+
+```json
+{
+    "xyz": "/home/jhli/CQPES-legacy/rawdata/CH4.xyz",
+    "energy": "/home/jhli/CQPES-legacy/rawdata/CH4_CCSD-T.dat",
+    "ref_energy": null,
+    "alpha": 1.0,
+    "output": "/home/jhli/CQPES-legacy/data"
+}
+```
+
+The `xyz` and `energy` has been mentioned before.
+
+For `ref_energy`, the potential energy `V` (in eV) will be calculated by
+
+```
+V = (E - E_ref) * 27.2107
+```
+
+Usually, for mono molecular system, `ref_energy` can be the energy of stationary point, while for reaction / interaction system, `ref_energy` can be the energy of all species separated far enough.
+
+`alpha` is the range parameter in Morse-like transformation, commonly, it should be 1.0.
+
+`output` indicates the directory to store pre-processed data, in which all data will be stored in numpy `*.npy` format.
+
+Run `./prepare.sh` to prepare the data by your own.
+
 ### 3. Train a PES
 
 ### 4. Evaluation
