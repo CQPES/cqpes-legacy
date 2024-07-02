@@ -230,6 +230,25 @@ To start training, run `train.sh` and the results will be outputed in the `workd
 
 ### 4. Evaluation
 
+To evaluate a trained PES, a Jupyter notebook has been provided in [`src/train/evaluate.ipynb`](https://github.com/CQPES/cqpes-legacy/blob/main/src/train/evaluate.ipynb). Before running this notebook, remember to fill the path to data directory and training output directory.
+
+```python3
+
+config_json = "/home/jhli/CQPES-legacy/config/train.json"
+workdir = "/home/jhli/CQPES-legacy/model-2024-06-29 16:24:34.294319"
+```
+
+After running, the max absolute error, mean absolute error (MAE), mean squared error (MSE), and root mean squared error (RMSE) will be calculate and printed as below (in `meV`).
+
+|   | Dataset | MAE      | MSE      | RMSE     |
+| - | ------- | -------- | -------- | -------- |
+| 0 | train   | 0.334654 | 0.702226 | 0.837989 |
+| 1 | valid   | 0.371523 | 1.407177 | 1.186245 |
+| 2 | test    | 0.339292 | 0.829823 | 0.910946 |
+| 3 | total   | 0.336729 | 0.336729 | 0.580283 |
+
+The error distribution will be plotted in a scattering figure.
+
 ### 5. Python Interface
 
 ### 6. Fortran Interface
