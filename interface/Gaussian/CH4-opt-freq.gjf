@@ -1,0 +1,20 @@
+%nproc=1
+%chk=CH4-opt-freq.chk
+#p external="python3 -u ./pes/ch4_pes.py" opt=(nomicro,tight)
+
+Title Card Required
+
+0 1
+ C                 -0.00000000   -0.00000000   -0.00000000
+ H                  0.00000000   -0.00000000    1.07000000
+ H                 -0.00000000   -1.00880567   -0.35666667
+ H                 -0.87365134    0.50440284   -0.35666667
+ H                  0.87365134    0.50440284   -0.35666667
+
+
+--link1--
+%nproc=1
+%chk=CH4-opt-freq.chk
+#p external="python3 -u ./pes/ch4_pes.py" freq geom=allcheck
+
+

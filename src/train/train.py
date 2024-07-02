@@ -10,16 +10,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 
 # autopep8: on
 
-import inspect
 import argparse
+import datetime
+import inspect
 import json
 
-import datetime
+import levenberg_marquardt as lm
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 from sklearn.model_selection import train_test_split
-import levenberg_marquardt as lm
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 
 tf.keras.backend.set_floatx("float64")
 

@@ -1,0 +1,6 @@
+{
+    "train_config": "/home/jhli/Developer/cqpes-legacy/config/train.json",
+    "input": 82,
+    "ckpt": "/home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/ckpt/model-epoch-1000-val-mse-1.44331e-07.h5",
+    "output": "/home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/ch4_pip_nn.h5"
+}
