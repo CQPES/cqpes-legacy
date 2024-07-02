@@ -190,6 +190,44 @@ Run `./prepare.sh` to prepare the data by your own.
 
 ### 3. Train a PES
 
+In previous section, the molecules in `xyz` format with the energy has been packed as numpy `npy` file. In this section, a PES of the system will be trained.
+
+Here is a configuration file `config/train.json` defines the details in training.
+
+```json
+{
+    "data": "/home/jhli/CQPES-legacy/data",
+    "network": {
+        "layers": [
+            20,
+            20
+        ],
+        "activation": "tanh"
+    },
+    "fit": {
+        "lr": 0.5,
+        "epoch": 1000,
+        "batch_size": -1
+    },
+    "lm": {
+        "adaptive_scaling": true,
+        "fletcher": false,
+        "solve_method": "solve",
+        "jacobian_max_num_rows": 500
+    },
+    "split": [
+        0.9,
+        0.05,
+        0.05
+    ],
+    "workdir": "model"
+}
+```
+
+The `data` section is the path to previous packed data. The `network` section defines the number and size of hidden layers with the activation function, commonly, 2 hidden layers and `tanh` activation function will work. The `fit` section contains hyper-parameters in training, `lr` is the learning rate (0.1 ~ 1.0), `epoch` is the number of epochs to train (500~2000), `batch_size` is the size of mini-batch in traning. However, PIP-NN trained with second order optimizers, especially Levenberg-Marquardt (LM), will show better performance than first order optimizers. Thus, the hyper-parameters are tuned for LM optimizer, which requires more data in one batch to estimate better Hessian matrix. Setting `batch_size` as `-1` means full-batch training. Options in `lm` secitons controls the LM optimizer, for more details, refer to the [`DampingAlgorithm`](https://github.com/CQPES/cqpes-legacy/blob/d715aa1814a67c0a3cdbb8a67a1ff59a6b4472c5/src/train/levenberg_marquardt.py#L197). `split` is the ratio of each subset, training, validation, and test. `workdir` indicates the directory to save trained parameters and logs.
+
+To start training, run `train.sh` and the results will be outputed in the `workdir` with an extra timestamp, like [`model-2024-06-29 16:24:34.294319`](https://github.com/CQPES/cqpes-legacy/tree/main/model-2024-06-29%2016%3A24%3A34.294319).
+
 ### 4. Evaluation
 
 ### 5. Python Interface
