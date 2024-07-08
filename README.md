@@ -249,8 +249,46 @@ After running, the max absolute error, mean absolute error (MAE), mean squared e
 
 The error distribution will be plotted in a scattering figure.
 
-### 5. Python Interface
+### 5. Export a model
 
-### 6. Fortran Interface
+After training several models, one may wonder how to use the best model in later simulations. The checkpoints saved during training only contains the parameters, lacking in the architecture. When exporting a model, the model will be built and the parameters will be loaded, then this model can be saved in `h5` or `potfit` format.
+
+- The `h5` format is the standard format for saving a Keras model, one can load the exported `h5` file to create the NN part in PIP-NN.
+
+- The `potfit` format can store the architecture and parameters of a model in plain text format, which is recommanded when using PIP-NN with Fortran code. In previous work by Jun Li's group, the PIP-NN models were saved in this format.
+
+Here is a configuration file `config/export.json` defines the details in exporting a model.
+
+```json
+{
+    "train_config": "/home/jhli/Developer/cqpes-legacy/config/train.json",
+    "ckpt": "/home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/ckpt/model-epoch-1000-val-mse-1.44331e-07.h5",
+    "output": "/home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319"
+}
+```
+
+The `train_config` is the path to configuration file used in training, which can be used to construct the model. The `ckpt` indicates the parameters. The `output` is the directory to save exported model.
+
+To export `h5` model
+
+```bash
+$ python3 -u src/export/export.py -c config/export.json -t h5 
+Exporting model in h5 format...
+h5 file saved to /home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/model.h5
+Model exported successfully!
+```
+
+To export `potfit` model
+
+```bash
+Exporting model in potfit format...
+weights file saved to /home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/weights.txt
+biases  file saved to /home/jhli/Developer/cqpes-legacy/model-2024-06-29 16:24:34.294319/biases.txt
+Model exported successfully!
+```
+
+The exported models are sufficient for examples in [`interface`](https://github.com/CQPES/cqpes-legacy/tree/main/interface) directory.
+
+### 6. Interfaces
 
 ## Reference
