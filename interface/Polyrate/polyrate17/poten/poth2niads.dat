@@ -1,0 +1,7 @@
+0.19997        1.1167         3.7335              ! D2,ALPHA2,R2(3F15.7)
+4.7466         1.04435        1.402               ! D,ALPHA,RE
+1.8            0.31138        4.51141             ! DH,ALPHAH,RH 
+0.0            0.20           0.20                ! SAB,SAS,SBS
+0.3            1.3407         0.18727             ! VALEN,BETA,C
+6.65           13.3           19.95               ! ACONST,RCUT1,RCUT2
+-0.0049103998    817    2                         ! EZERO,NMETAL,NATOM(F15.9,2I5)

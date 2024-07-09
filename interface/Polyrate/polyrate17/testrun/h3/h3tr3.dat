@@ -1,0 +1,175 @@
+*General
+
+  TITLE
+ H2 + H' -> HH' + H: DMBE PES-HARMONIC/Page-McIver Sym. MEP 
+ CD-SCSAG; Test run h3tr3
+  END
+
+  ATOMS
+    1    H 
+    2    H
+    3    H
+  END
+
+  INPUNIT AU
+  OUTUNIT ANG
+
+*SECOND
+
+  NUMSTEP      0.000005
+  FPRINT
+
+*OPTIMIZATION
+
+  DLX2         0.000005
+  PRINT
+
+*REACT1
+
+  GEOM
+   1    0.000000    0.000000    0.000000 
+   2    1.4010502   0.000000    0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    y   z
+  END
+
+  SPECIES       LINRP
+
+  DEMIN        0.1744744
+  ANTLR        0.00000001
+  PROJECT
+
+
+*REACT2
+
+  STATUS  2
+
+  GEOM
+   3     60.0000  0.000000    0.000000
+  END
+
+  SPECIES   ATOMIC
+
+  PROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*PROD1
+
+  GEOM
+   2   -1.401050   0.000000   0.000000 
+   3    0.000000   0.000000   0.000000
+  END
+
+  CONSTANT
+   2    y   z
+   3    x   y   z
+  END
+
+  SPECIES       LINRP
+
+  DEMIN        0.1744744
+  ANTLR        0.00000001
+  PROJECT
+
+
+*PROD2
+
+  STATUS  2
+  GEOM
+   1  -60.000000   0.000      0.000000
+  END
+
+  SPECIES     ATOMIC
+
+  PROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*START
+
+  GEOM
+   1    0.0000000   0.000000   0.000000
+   2    1.7546341   0.000000   0.000000
+   3    3.5092682   0.000000   0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    y   z
+   3    y   z
+  END
+
+  SPECIES       LINTS
+
+  DEMIN        0.1744744
+  ANTLR        0.00000001
+  PROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*PATH
+
+   SYMMETRY
+   SCALEMASS     0.6718993
+   SSTEP         0.005
+   NSTEPS        99999
+   RPM           PAGEM
+   FIRSTSTEP     nmode
+   INH           2
+   CURV          dgrad
+   IDIRECT       1
+   SIGN          product
+
+   SRANGE
+      slp     3.5
+      slm    -3.5
+   END
+
+   COORD      curv1
+
+# end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+*RATE
+
+  FORWARDK
+  SIGMAF       2
+  SIGMAR       2
+  TST
+  CVT
+# ICVT
+  NOEDGEOK
+
+  TEMP
+    200.
+    300.
+    600.
+  END
+  
+  GSPEC
+    smax   0.5
+    smin  -0.5
+  END
+
+  ANALYSIS
+    200.
+    300.
+    600.
+  END

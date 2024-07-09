@@ -1,0 +1,73 @@
+*gen40
+
+  title
+   CH3 + H2, UHF/STO-3G Energies and frequencies. Geometries in Bohr
+  end
+
+  print  input
+  maxlpts  3
+  
+  geomunit  bohr
+  gradunit  bohr
+
+  freqsource  read
+  frequnit    au
+
+*r140   # first reactant:  CH3
+
+  vvalue  0.0
+
+  freq
+    1.74395089D-02  1.74380964D-02  1.61870180D-02  7.70047953D-03
+    7.69997833D-03  2.67206266D-03
+  end
+
+  ifreq
+    1 2 4 5 6 9  
+  end
+
+*r240   # second reactant:  H2
+
+  vvalue  0.0
+
+  freq
+    2.49649796D-02
+  end
+
+  ifreq
+    3
+  end
+
+*p140   # first product:  CH4
+
+  vvalue  0.001070
+
+  freq
+    1.72681907D-02  1.72671427D-02  1.72671427D-02  1.60790328D-02
+    8.67302924D-03  8.67302924D-03  7.63222563E-03  7.63222563D-03
+    7.63186113D-03
+  end
+
+  ifreq
+    1 2 3 4 5 6 7 8 9  
+  end
+
+*p240   # second product:  H atom
+
+  vvalue  0.0
+
+*saddle40   
+
+  vvalue  0.038994
+
+  freq
+    1.728812D-02 1.728812D-02 1.625019D-02 8.249254D-03 8.079302D-03
+    8.078846D-03 7.062327D-03 7.061871D-03 6.585278D-03 3.281020D-03
+    3.281020D-03
+  end
+
+  ifreq
+    1 2 3 4 5 6 7 8 9 10 11
+  end
+
+  wstar  1.24729671D-02

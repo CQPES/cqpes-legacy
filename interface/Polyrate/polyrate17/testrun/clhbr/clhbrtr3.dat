@@ -1,0 +1,206 @@
+*General
+
+  TITLE
+Cl+HBr->ClH+Br, LCG4 tunneling to all accessible excited states; clhbrtr3
+  END
+
+  ATOMS
+    1    Cl 
+    2    H 
+    3    Br
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  FPRINT
+
+*OPTIMIZATION
+
+  PRINT
+  DLX2         0.000005
+
+# end of general section
+
+*REACT1
+
+  GEOM
+   2    0.000000   0.000000  100.000000
+   3    0.000000   0.000000  102.672100
+  END
+
+  SPECIES  LINRP
+
+  CONSTANT
+   2    x   y   z
+   3    x   y
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*REACT2
+
+  GEOM
+   1    0.0000  0.000000  0.000000
+  END
+
+  ELEC
+    4   0.0
+    2   0.00401413
+  END
+
+  SPECIES  ATOMIC
+
+*PROD1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   2.409401 
+  END
+
+  SPECIES  LINRP
+
+  CONSTANT
+   1    x  y
+   2    x  y  z
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD2
+
+  GEOM
+   3   0.000000  0.000000   100.0000
+  END
+
+  SPECIES   ATOMIC
+
+  ELEC
+    4   0.0
+    2   0.01679010
+  END
+
+# end of prod2 section
+
+
+*START
+
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   3.136276420
+   3    0.000000   0.000000   6.061583360
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    x   y
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  LINTS
+
+# end of start section
+
+
+*PATH
+
+   SCALEMASS     24.3259
+   SSTEP         0.00001
+   NSTEPS        1100000
+   CURV          dgrad
+   INH           1000
+   SIGN          product
+   IDIRECT       1
+
+   SRANGE
+      slp     3.00
+      slm    -3.00
+   END
+
+   COORD         curv1
+
+  # end of path section
+
+
+*TUNNEL
+
+  ZCT
+  SCT
+  ALLEXCIT
+
+  LCTOPT
+   lcgmethod   4
+   nolctrst
+   lctstr
+   interpolate   2
+   ngtheta       140
+   ngamp         40
+  END
+
+  QUAD
+    nqe        20
+    nqth       20
+  END
+
+*RATE
+
+  BOTHK
+  SIGMAF       1
+  SIGMAR       1
+  TST
+  CVT
+  NOEDGEOK
+
+  PRVIB
+    sx        2.0
+    sy       -2.0
+  END
+
+  TEMP
+    200.
+    300.
+    400.
+    600.
+    1000.
+    1500.
+    2400.
+  END
+
+  GSPEC
+     smin   -0.50
+     smax    0.50
+  END
+
+  ANALYSIS
+    200.
+    300.
+    400.
+    600.
+    1000.
+    1500.
+    2400.
+  END

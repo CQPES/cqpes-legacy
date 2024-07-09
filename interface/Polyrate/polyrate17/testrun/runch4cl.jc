@@ -1,0 +1,17 @@
+#!/bin/csh -f
+#
+# C shell script to run all ch4cl testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/ch4cl
+#
+cd $wrkdir
+#
+./ch4cltr1.jc
+./ch4cltr2.jc
+#
+echo
+echo "ch4cl testruns completed"
+#
+#end of runch4cl.jc
+#

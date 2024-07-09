@@ -1,0 +1,102 @@
+*General
+
+  TITLE
+ CH3 + H-H -> CH4 + H J1 PES-Harmonic-Page-McIver with lcg3, 
+ Test run ch5j1tr2  - restart run
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+    3    H
+    4    H 
+    5    C  
+    6    H
+  END
+
+  RESTART
+   readfu1
+  END
+ 
+  INPUNIT AU
+
+# end of general section
+
+*TUNNEL
+
+  ZCT
+  NOALLEXCIT
+
+  SCTOPT
+    lagrange  5
+  END
+
+  LCTOPT
+    lcgmethod   3
+    nolctrst
+    nolctstr
+    ngtheta    180
+    ngamp      30
+  END
+
+  EMIN         29.0
+
+  QUAD 
+    nqe        10
+    nqth       40
+    nsegboltz   1
+    nsegtheta   1
+  END
+
+  # end of tunnel section
+
+*RATE
+
+  BOTHK
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  CVT
+  # ICVT
+  PRPART       rps
+  PRDELG
+
+  TEMP
+    200.
+    250.
+    298.
+    300.
+    400.
+    500.
+    600.
+    800.
+   1000.
+   1500.
+  END
+
+  GSPEC
+     smin   -0.25
+     smax    0.25
+  END
+
+  EACT
+    200.   298.
+    200.   400.
+    298.   400.
+    298.   600.
+    298.   800.
+    298.  1000.
+  END
+
+  ANALYSIS
+    200.
+    250.
+    298.
+    300.
+    400.
+    500.
+    600.
+    800.
+   1000.
+   1500.
+  END
