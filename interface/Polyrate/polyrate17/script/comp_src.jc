@@ -1,0 +1,77 @@
+#!/bin/csh -f
+#
+# Usage: comp_src.jc param_file_#
+#
+# C shell script used to compile polyrate source code on linux
+#
+set polydir = `cat ~/.poly_path9.4`
+set wrkdir = $polydir/src
+set libdir = $polydir/obj
+#
+cd $wrkdir
+#
+set CF = "mpif77 -c -w -g "
+#
+if ($#argv != 1) then
+   echo "Usage: comp_src.jc param_file_#"
+   echo "For example: comp_src.jc 2"
+   exit 1
+endif
+#
+set name = $libdir/libpoly$argv[1].a
+#
+if (-e $name) then
+   echo ""
+   echo "The file $name already exists."
+   echo "Please rename or delete the file before making a new one."
+   echo "Thanks\!"
+   exit 1
+endif
+echo ""
+echo "Compiling source code to the library file"
+echo "$name ....."
+echo "Please wait."
+cp param$argv[1].inc param.inc
+#
+cc -c dateclock.c
+$CF main.f
+$CF poly_mpi.f
+$CF dummy_mpi.f
+$CF energetics.f
+$CF hooks.f
+#$CF dattim.f
+#$CF headr.f
+#$CF poly40.f
+#$CF poly31.f
+$CF polyag.f
+$CF polyhl.f
+$CF polymq.f
+#$CF polyrr.f
+#$CF polysz.f
+#$CF interface.f
+#$CF intbsv1.f
+#$CF givtst.f
+#$CF fromblas.f
+#$CF acesrate/acespoly.f
+#$CF morate/mopoly.f
+#$CF intbsv2.f
+$CF ef.f
+#$CF intbsv3.f
+#$CF rtpjac.f
+#$CF ivtstm.f
+#
+#  put all the object files into a archive file
+#
+ar -q libpoly$argv[1].a dattim.o \
+  headr.o \
+  polyag.o polyhl.o polymq.o polyrr.o polysz.o interface.o energetics.o \
+  hooks.o intbsv1.o intbsv2.o givtst.o poly40.o acespoly.o \
+  mopoly.o fromblas.o ivtstm.o poly31.o dateclock.o ef.o intbsv3.o rtpjac.o
+#
+#  rm dattim.o mpi_main.o poly*.o
+#
+mv libpoly$argv[1].a $libdir
+echo "The library file libpoly$argv[1].a has been created and put in "
+echo "$libdir."
+#
+# End of script comp_src.linux   

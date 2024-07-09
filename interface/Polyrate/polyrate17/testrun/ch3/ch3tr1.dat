@@ -1,0 +1,114 @@
+*General
+
+  TITLE
+  CH3 + CH3 --> C2H6
+  Test of VRC-VTST for barrierless association reaction
+  END
+
+  ATOMS
+    1    C
+    2    H
+    3    H
+    4    H
+  END
+
+  VRC
+
+  VRCOPT
+   NMC  500
+   JMAX 300
+   JSTEP 2
+  END
+
+*SECOND
+
+  HESSCAL  ghook
+  NUMTYPE  quadratic
+
+*REACT1
+
+  INITGEO   GEOM
+
+  STATUS    2
+
+  GEOM
+    1            0.000000    0.000000    0.000000
+    2            0.000000    0.000000    1.122384
+  END
+
+  PIVOT
+  1   0.000000    0.000000    0.000000   
+  END
+
+  SPECIES   LINRP
+
+  ELEC
+   4 0.0
+  END
+
+*REACT2
+
+  INITGEO   GEOM
+
+  STATUS    2
+
+  GEOM
+    3            0.000000   20.000000    0.000000   
+    4            0.000000   20.000000    0.742965
+  END
+
+  PIVOT
+   1  0.000000   20.000000    0.3714825  
+  END
+
+  SPECIES   LINRP
+
+  ELEC
+   1 0.0
+  END
+
+*PROD1
+
+  INITGEO  GEOM
+
+  STATUS   2
+
+  GEOM
+    1     -0.00000000   -0.00000000    0.00000000
+    2     -0.00000000    1.08200000    0.00000000
+    3     -0.93703949   -0.54100000    0.00000000
+    4      0.93703949   -0.54100000    0.00000000
+  END
+
+  SPECIES  NONLINRP
+ 
+  ELEC
+   2 0.0
+  END
+
+*START
+
+  ELEC
+   2 0.0
+  END
+
+*PATH
+
+ SVRC
+  1.5 6.21 0.2
+ END
+ 
+*RATE
+
+  SIGMAF  1.
+
+  TEMP
+    298.
+    350.
+    400.
+    600.
+    800.
+    900.
+   1000.
+  END
+

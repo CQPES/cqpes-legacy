@@ -1,0 +1,5320 @@
+C***********************************************************************
+C     CVCOOR
+C***********************************************************************
+C
+      SUBROUTINE cvcoor(IOP,ISSAD)
+      use perconparam
+      use common_inc
+      use intbsv; use cm
+      use rate_const
+      use kintcm
+      use sst
+C
+C     This is the driver for the internal coordinate generalized normal
+C     mode analysis for polyatomics using codes transformation
+C     codes from Challacombe and Cioslowski. 07/95 KAN
+C
+C     LIMITATIONS:
+C     1. Without out-of-plane wags.
+C 
+C     Add linear bends. YC , 09xx96
+C     Generalized to tri-atomic molecules. YC , 09xxYC96
+C     Redundant internal coordinate. YC , 062697
+C
+C     CALLED BY:
+C              ICFDIAG
+C     CALLS:
+C           PRSQ,TRANS,TRANLF,PROJCT,CONOUT,PRNTFC,BMAT,BIMAT,BIMAT2,
+C           TRANG,BTENS,FORMF2,TRANFC,EXPND,PROJF,GFDIAG,VECCON,
+C           ICSAVE,MATX  
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      LOGICAL ICPR,REDUN                                                0626YC97
+      LOGICAL ISSAD                                                     0317YC99
+      CHARACTER*2 AL
+      real(8), allocatable :: SCR1(:),SCR2(:),SCR3(:)
+      real(8), allocatable :: SCR1B(:),SCR2B(:),SCR3B(:)
+C
+      DIMENSION AL(NATOMS), XX(N3TM),DXINT(MAXINT)
+      DIMENSION XC(NATOMS),YC(NATOMS),ZC(NATOMS), DXX(N3TM)
+      DIMENSION GM(MAXINT*MAXINT)                                       0626YC97
+      DIMENSION AMASIN(N3TM*N3TM)
+      DIMENSION FINT(MAXINT*MAXINT)
+      DIMENSION FREQI(N3TM)
+      DIMENSION AVEC(N3TM*N3TM)
+C
+      DIMENSION FREQISC(N3TM)                                           0211PJ01   
+      DIMENSION DXINTB(MAXINT)                                          0214PJ01       
+      DIMENSION FLGMB(MAXINT)                                           0215PJ01
+      DIMENSION AVECB(N3TM*N3TM)                                        0214PJ01  
+      DIMENSION AMASINB(N3TM*N3TM)                                      0214PJ01 
+      DIMENSION FINTB(MAXINT*MAXINT)                                    0214PJ01
+      DIMENSION GGIB(MAXINT*MAXINT)                                     0215PJ01
+      DIMENSION EGNMB(MAXINT*MAXINT)                                    0215PJ01  
+      DIMENSION GMB(MAXINT*MAXINT)                                      0215PJ01
+C
+C projection from redundant to nonredundant
+C
+      DIMENSION FLGM(MAXINT)                                            0626YC97
+      DIMENSION EGNM(MAXINT*MAXINT)                                     0626YC97
+      DIMENSION GGI(MAXINT*MAXINT)                                      0626YC97
+C
+C store the orientation of the coordinate system for L bend             0905YC96
+c
+      DIMENSION T(3,3)                                            
+      SAVE                                                              0601YC98
+      if(.not.allocated(SCR1)) then
+      allocate(SCR1(N3TM*MAXINT),SCR2(N3TM*MAXINT),SCR3(N3TM*MAXINT))
+      allocate(SCR1B(N3TM*MAXINT),SCR2B(N3TM*MAXINT),SCR3B(N3TM*MAXINT))
+      endif
+     
+      if(.not.allocated(core)) allocate(core(maxcor))
+      core=0.d00
+C
+      REDUN = .FALSE.                                                   0626YC97
+      IF (LGS2(39).GE.5) REDUN=.TRUE.                                   0626YC97
+C
+      IF (S.GE.SDEBG1.AND.S.LE.SDEBG2) THEN
+	 ICPR = .TRUE.
+      ELSE
+	 ICPR = .FALSE.
+      ENDIF
+      
+C  
+      NCART = N3
+      NINT  = NUMINT
+      IF (ISSAD) ICPR = .FALSE.                                         0317YC99
+C
+C     Check for number of internal coordinates 
+C     for curv3 option the maximum allowed is MAXINT
+C     for curv2 option the maximum is 3N-5 or 3N-6 
+C
+      IF(REDUN)THEN
+           IF (NINT.GT.MAXINT) THEN
+               WRITE (6,199) MAXINT, NINT
+               STOP 'CVCOOR 1' 
+           ENDIF
+      ELSE
+           IF (ICODE(5).EQ.2.OR.ICODE(5).EQ.3) THEN
+             IF (NINT.GT.N3-5) THEN 
+                 WRITE (6,199) N3-5, NINT
+                
+                 STOP 'CVCOOR 2'
+             ENDIF
+           ELSE
+             IF (NINT.GT.N3-6) THEN
+               WRITE (6,199) N3-6, NINT
+               STOP 'CVCOOR 3'
+             ENDIF
+           ENDIF 
+      ENDIF
+ 199  FORMAT (1X,'WRONG NUMBER OF INTERNAL COORDINATES ONLY ',I5,
+     >       ' ARE ALLOWED.',/1X,'YOU HAVE ',I5,' COORDINATES.')
+C
+C  MAKE LOCAL COPIES OF POSITION AND GRADIENT
+C
+      DO 20 I = 1, N3    
+         XX(I) = X(I)
+         DXX(I) = DX(I)
+ 20   CONTINUE
+
+
+C
+C     DEBUGGING INFORMATION
+C
+      IF(ICPR)THEN
+         WRITE(6,'(/,
+     >    '' *** (CVCOOR: s VALUE FROM COMMON ***'')')
+         WRITE(FU6,'(1X,F6.3)') S
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: CARTESIAN COORDINATES ***'')')
+         WRITE(FU6,'(1X,3E20.7)')(XX(I),I=1,N3)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: DXMAG AND DXNORM ***'')')
+         WRITE(FU6,'(2E20.7)')DXMAG,DXNORM
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: CARTESIAN GRADIENTS ***'')')
+         WRITE(FU6,'(1X,3E20.7)')(DXX(I),I=1,N3)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: CARTESIAN HESSIAN ***'')')
+         CALL PRSQ(F,N3,N3,N3TM,N3TM,6)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: AMASS ***'')')
+         WRITE(FU6,'(1X,3E20.10)')(AMASS(I),I=1,N3)  
+      ENDIF
+C
+C     Convert gradient and positions vectors 
+C     mass scaled cartesians to Cartesians. Note That for FU30 input
+C     the Cartesian coordinates are already non-mass-scaled.
+C
+C      IF(LGS(30).GT.0) THEN
+C        CALL TRANS(2,N3,AMASS,XXC,DXX)
+C      ELSE
+        CALL TRANS(2,N3,AMASS,XX,DXX)
+C      ENDIF
+C
+C
+C  UNSCALE AND UNNORMALIZE THE GRADIENT.  IT HAD BEEN SCALED IN MW 
+C  COORDS SO THAT LARGEST ELEMENT WAS UNITY AND NORMALIZED SO THAT
+C  NORM WAS ONE.  THESE TWO FACTORS ARE COMBINED IN DXMAG.  AFTER THIS
+C  THE GRADIENT IS UNSCALED, UNNORMALIZED, AND IN CARTESIAN COORDS
+C
+C Unormalize DXX
+C
+        DO 40 I = 1,NCART
+          DXX(I) = DXX(I) * DXMAG
+   40   CONTINUE
+C
+C     CONVERT FORCE CONSTANT MATRIX IN NON-MASS-WEIGTED AND
+C     STORE IN LOWER TRIANGLE FORM IN FL (A LOCAL COPY)
+C
+      CALL TRANLF (2,N3,F,AMASS)
+C
+C     PROJECT OUT TRANS/ROT/CART GRAD FROM CART HESSIAN
+C     PREPARES VARIOUS ARRAYS FOR OTHER PURPOSES
+C
+c 0317YC99
+c     I dont think we will need to do projection prior
+c     the FG method should drop the TransROT
+c
+c 0926BL00 
+c     The call to PROJCT was uncommented
+c
+       CALL PROJCT
+C
+
+      DO 30 I = 1, NATOM
+         XC(I) = XX(3*I-2)
+         YC(I) = XX(3*I-1)
+         ZC(I) = XX(3*I)
+ 30   CONTINUE
+C
+C     IN DEBUG MODE, PRINT OUT THE CARTESIAN GRADIENT
+C     AND CONNECTIVITIES
+C
+      IF(ICPR)THEN
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: UNSCALED CARTESIAN COORDINATES ***'')')
+         WRITE(FU6,'(3F20.9)')(XX(I),I=1,N3)
+      ENDIF
+      al(:)='  '
+      IF(ICPR.or.(LGS(4).NE.0.AND.(MOD(LSAVE,NPRSMD).eq.0)))THEN
+         CALL CONOUT(NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,NATOM,           0905YC96
+     >   XC,YC,ZC,AL)
+      ENDIF
+
+      IF(ICPR)THEN
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: UNSCALED CARTESIAN GRADIENTS ***'')')
+         WRITE(FU6,'(3F20.9)')(DXX(I),I=1,N3)
+         WRITE(6,*)'NON-MASS-WEIGHTED FORCE CONSTANT MATRIX'
+         CALL PRNTFC(FL,N3,maxca2)
+      ENDIF
+C
+C     CALCULATE THE DR/DX MATRIX
+C
+      IBM=1
+C
+C     CALL BMAT
+C    > (NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,XC,YC,ZC,NATOM,NINT,
+C    >                                                 CORE(IBM),T)     0905YC96
+      CALL BMAT
+     > (NBL,NBA,NTO,NIMP,NLBE,IBL,IBA,ITO,IMP,ILBE,XC,YC,ZC,NATOM,NINT,
+     >                                                 CORE(IBM),T)     0413JZ14
+c
+c     adding 1 to indicate dy/dy for collective solvent coordinate
+c     since the solvent mode is assumed to be an internal coordinate
+c     other derivatives are zeros, same as the elements in C tensors
+c
+      IF (LBATH) CORE(NINT*NCART) = 1.0d0                               0317YC99
+C
+C     CALCULATE THE DX/DR MATRIX
+C
+      IBI=IBM+MAXCAR*MAXINT
+C 
+c      CALL BIMAT
+c     > (CORE(IBM),CORE(IBI),AMASS,AMASIN,GM,REDM,NATOM,NINT)           0905YC96
+C
+C     CALCULATE THE A MATRIX
+C
+      if (REDUN) then 
+         CALL BIMAT2                                                    0317YC99
+     >     (CORE(IBM),CORE(IBI),AMASS,AMASIN,GM,GGI,FLGM,               0317YC99
+     >      EGNM,REDM,NATOM,NINT,NCART)                                 0317YC99
+C         WRITE(6,'(/,
+C     >   '' *** (CVCOOR: GGI-MATRIX ***'')')
+C         CALL PRSQ(GGI,NINT,NINT,NINT,NINT,FU6)
+      else 
+          CALL BIMAT                                                    0317YC99
+     >    (CORE(IBM),CORE(IBI),AMASS,AMASIN,GM,REDM,NATOM,NINT,NCART)   0317YC99
+      endif
+C
+C      WRITE(6,'(/,
+C     >   '' *** (CVCOOR: FLGM vector ***'')')
+C      DO I = 1,NINT
+C         WRITE (6,*) 'Eigenvalue ',I,' = ',FLGM(I)
+C      ENDDO
+C      WRITE(6,'(/,
+C     >   '' *** (CVCOOR: EGNM -MATRIX ***'')')
+C      CALL PRSQ(EGNM,NINT,NINT,NINT,NINT,6)
+C
+C     CONVERT GRADIENT IN CARTESIANS TO INTERNAL COORDINATES
+C     G(int) = A-tr*G(carts) 
+C     where A is core(ibi)
+C
+      CALL TRANG(DXINT,CORE(IBI),DXX,MAXINT,MAXCAR,NINT,NCART)
+C
+C      DEBUG MODE
+C
+      IF(ICPR)THEN
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: B-MATRIX ***'')')
+         CALL PRSQ(CORE(IBM),NINT,NCART,NINT,NCART,6)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: A-MATRIX ***'')')
+         CALL PRSQ(CORE(IBI),N3,NINT,NCART,NINT,6)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: INTERNAL COORD GRAD ***'')' )
+         WRITE(FU6,'(5E15.6)') (DXINT(I), I=1,NINT)                     0905YC96
+      ENDIF
+C
+      IBT=IBI+MAXCAR*MAXINT
+C
+      CALL BTENS
+     > (NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,XC,YC,ZC,NATOM,               0905YC96
+     > CORE(IBI),CORE(IBT),NINT,NCART,MAXINT,MAXIN2,T)                  0905YC96
+C
+      IF2=IBT+MAXIN2*MAXINT
+C
+C     FORM THE SECOND TERM OF INTERNAL FORCE CONSTANT MATRIX
+C
+      CALL FORMF2(CORE(IF2),CORE(IBT),DXINT,MAXINT,MAXIN2,NINT)
+C
+      IF(ICPR)THEN
+         WRITE(6,*)'FINTER: g*BT MATRIX'
+         CALL PRNTFC(CORE(IF2),NINT,MAXIN2)
+      ENDIF
+C
+C     TRANFORM HARMONIC FORCE CONSTANT MATRIX INTO INTERNAL
+C
+      IHFC = IF2 + MAXIN2
+      IWORK = IHFC + MAXIN2
+C  
+      CALL TRANFC(                                                      0317YC99
+     > FL,CORE(IBI),CORE(IWORK),CORE(IHFC),CORE(IF2),NATOM,             0317YC99
+     > MAXINT,MAXCAR,MAXIN2,NINT,NCART)
+
+
+C
+      CALL EXPND(CORE(IHFC),FINT,NINT,0)
+c
+
+
+C *** COMMENT THE ORIGINAL BLOCK BEFORE THE DIAGALIZATION (P8.5) ***    0211PJ01
+C *** THE COMMENTED PART DO NOT INCLUDE SCALING FC ******************       .. 
+C
+C                
+C   for redundant internal coordinates, we have to project to the          ..
+C   nonredundant internal coordinate system to perform GF analysis         ..
+C
+C      if (REDUN) then                                                     ..
+C           CALL PROJRE(DXINT,GGI,FINT,SCR1,NINT)                          ..
+C           WRITE(6,'(/,                                                   ..
+C     >   '' *** (CVCOOR: INTERNAL COORD GRAD (AFTER PROJRE) ***'')')      ..
+C           WRITE(FU6,'(5E15.6)') (DXINT(I), I=1,NINT)                     ..
+C           WRITE(6,'(/,                                                   ..
+C     >     '' *** (CVCOOR: FULL F-MATRIX (AFTER PROJRE) ***'')')          ..
+C           CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                          ..
+C      endif                                                               ..
+C       
+C   now project out the reaction coordinate direction                      ..
+C
+C      IF (.NOT.ISSAD) THEN                                             0317YC99 
+C      CALL PROJF(FINT,DXINT,CORE(IBM),SCR1,SCR2,SCR3,GM                0211PJ01
+C     >   ,AMASIN,NINT,NCART)                                              ..                                             
+C                                                              
+C      IF(ICPR .or.(LGS(4).NE.0.AND.(MOD(LSAVE,NPRSMD).EQ.0)))THEN         ..
+C         WRITE(6,'(/,                                                     ..
+C     > '' *** (CVCOOR: FULL INTERNAL F-MATRIX (AFFTER PROJF) ***'')')     ..
+C         CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                            ..
+C      ENDIF                                                               ..
+C     IF (ICPR) THEN                                                       ..
+C         WRITE(FU6,9056)                                                  ..
+C 9056    FORMAT(1X,'PROJ -RIGHT, FOLLOWED BY PROJ -LEFT')                 ..
+C         CALL PRSQ(SCR2,NINT,NINT,NINT,NINT,FU6)                          ..
+C         CALL PRSQ(SCR3,NINT,NINT,NINT,NINT,FU6)                          ..
+C      ENDIF                                                               ..
+C      ENDIF                                                            0317YC99
+C
+C  if redundant coordinates are used, do not need to diagonalize        0211PJ01
+C  the G matrix                                                            ..
+C                             
+C     if (REDUN) then                                                      .. 
+C         CALL GFDIA2(ISSAD,FINT,FREQI,AVEC,FLGM,EGNM,                     ..
+C     >        SCR1,SCR2,SCR3,NINT)                                        ..
+C      else                                                                ..
+C         CALL GFDIAG(ISSAD,GM,FINT,FREQI,AVEC,SCR1,SCR2,SCR3,NINT)        ..
+C      endif                                                               ..
+C
+C
+C ************************ COMMENT DONE ****************************    0211PJ01
+
+
+
+
+
+C
+C ***** FOLLOWING BLOCK ARE ADDED FOR SCALING FORCE CONSTANTS *****     0211PJ01
+C                                        BY: JINGZHI PU, FEB., 2001        .. 
+
+
+
+C --- PREPARATION FOR FC SCALING
+
+C
+C     back up dxint and scratch space if only scale the frequencies     0215PJ01
+C
+      IF (LGS3(1) .EQ. 1) THEN
+          DO I = 1, MAXINT
+              DXINTB(I) = DXINT(I)
+              FLGMB(I) = FLGM(I)
+          END DO
+
+          DO I = 1, N3TM * MAXINT
+              SCR1B(I) = SCR1(I)
+              SCR2B(I) = SCR2(I)
+              SCR3B(I) = SCR3(I)
+          END DO
+
+          DO I = 1, N3TM * N3TM
+              AVECB(I) = AVEC(I)
+              AMASINB(I) = AMASIN(I)
+          END DO
+
+          DO I = 1, MAXINT * MAXINT
+              FINTB(I) = FINT(I)
+              GGIB(I) = GGI(I)
+              GMB(I) = GM(I)
+              EGNMB(I) = EGNM(I)
+          END DO
+      END IF
+
+C
+C     Print internal force constant matrix before scaling
+C
+      IF(ICPR)THEN
+
+         IF (LGS3(1) .NE. 0) THEN
+             WRITE(FU6, *) 'BEFORE SCALING FORCE CONSTANT: '            0211PJ01
+         END IF
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR:NON-MASS-WEIGHTED INTERNAL F-MATRIX ***'')')
+         CALL PRNTFC(CORE(IHFC),NINT,MAXIN2)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: FULL F-MATRIX ***'')')
+c        CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                          0211PJ01
+         CALL PRSQ(FINT, NINT, NINT, NINT, NINT, 6)                     0211PJ01
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: G-MATRIX ***'')')
+         CALL PRSQ(GM,NINT,NINT,NINT,NINT,FU6)
+      ENDIF
+
+
+
+C
+C     scaling the force constant matrix                                 0211PJ01
+C
+      IF (LGS3(1) .NE. 0) THEN                                          0211PJ01
+         CALL FCSCL(FINT, NINT, 6)                                      0215PJ01
+      END IF                                                            0211PJ01
+C
+C     print internal force constant matrix after scaling
+C
+      IF(ICPR .AND. LGS3(1) .NE. 0)THEN                                 0211PJ01
+         WRITE(FU6, *) 'AFTER SCALING FORCE CONSTANT: '
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR:NON-MASS-WEIGHTED INTERNAL F-MATRIX ***'')')
+         CALL PRNTFC(CORE(IHFC),NINT,MAXIN2)
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: FULL F-MATRIX ***'')')
+C        CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                          0211PJ01
+         CALL PRSQ(FINT, NINT, NINT, NINT, NINT, 6)                     0211PJ01
+         WRITE(6,'(/,
+     >   '' *** (CVCOOR: G-MATRIX ***'')')
+         CALL PRSQ(GM,NINT,NINT,NINT,NINT,FU6)
+      ENDIF
+
+
+
+
+C --- FOR SCALED FORCE CONSTANTS        
+       
+      IF(LGS3(1) .NE. 0) THEN
+
+C
+C     porject redundant to non-redundant for scaled fc    
+C
+          IF (REDUN) THEN                                     
+            CALL PROJRE(DXINT, GGI, FINT, SCR1, NINT)                   0215PJ01   
+C           WRITE(6,'(/,                                             
+C    *   '' *** (CVCOOR: INTERNAL COORD GRAD (AFTER PROJRE) ***'')')    
+C           WRITE(FU6,'(5E15.6)') (DXINT(I), I=1,NINT)              
+C           WRITE(6,'(/,                                           
+C    *     '' *** (CVCOOR: FULL F-MATRIX (AFTER PROJRE) ***'')')           
+C           CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)              
+          END IF                                                  
+
+
+C
+C     now project out the reaction coordinate direction        
+C
+          IF (.NOT.ISSAD) THEN                                   
+            CALL PROJF(FINT,DXINT,CORE(IBM),SCR1,SCR2,SCR3,GM           0214PJ01     
+     *                ,AMASIN,NINT,NCART)                         
+
+            IF(ICPR .or.(LGS(4).NE.0.AND.(MOD(LSAVE,NPRSMD).EQ.0)))THEN   
+                WRITE(FU6,*) '*** FOR SCALED FC MATRIX ***'               
+                WRITE(FU6,'(/,                                            
+     *    '' *** (CVCOOR: FULL INTERNAL F-MATRIX (AFFTER PROJF) ***'')')   
+                CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                 
+            ENDIF                                                      
+ 
+            IF (ICPR) THEN                                            
+              WRITE(FU6,9056)                                        
+ 9056         FORMAT(1X,'PROJ -RIGHT, FOLLOWED BY PROJ -LEFT')      
+              CALL PRSQ(SCR2,NINT,NINT,NINT,NINT,FU6)            
+              CALL PRSQ(SCR3,NINT,NINT,NINT,NINT,FU6)           
+            END IF                                               
+          END IF                                                  
+
+
+C
+C     if redundant coordinates are used, do not need to diagonalize
+C     the G matrix
+C
+          IF (REDUN) THEN                                       
+              CALL GFDIA2(ISSAD,FINT, FREQISC,AVEC,FLGM,EGNM, 
+     *                    SCR1,SCR2,SCR3,NINT)  
+          ELSE                                               
+              CALL GFDIAG(ISSAD,GM,FINT,FREQISC,AVEC,     
+     *                    SCR1,SCR2,SCR3,NINT)             
+          END IF                                          
+
+
+      END IF
+
+
+
+
+C --- FOR UNSCALED FORCE CONSTANTS                                 
+
+      IF( LGS3(1) .LT. 2) THEN                                          
+
+C
+C     recover the scratch space if the scaled potential is not used     0215PJ01 
+C
+           IF (LGS3(1) .EQ. 1) THEN
+               DO I = 1, MAXINT
+                   DXINT(I) = DXINTB(I)
+                   FLGM(I) = FLGMB(I)
+               END DO
+
+               DO I = 1, N3TM * MAXINT
+                   SCR1(I) = SCR1B(I)
+                   SCR2(I) = SCR2B(I)
+                   SCR3(I) = SCR3B(I)
+               END DO
+
+               DO I = 1, N3TM * N3TM
+                   AVEC(I) = AVECB(I)
+                   AMASIN(I) = AMASINB(I)
+               END DO
+
+               DO I = 1, MAXINT * MAXINT
+                   FINT(I) = FINTB(I)
+                   GGI(I) = GGIB(I)
+                   GM(I) = GMB(I)
+                   EGNM(I) = EGNMB(I)
+               END DO
+           END IF
+
+
+C
+C     for unscaled fc or scaling frequencies  only     
+C
+           IF (REDUN) THEN                      
+               CALL PROJRE (DXINT, GGI, FINT, SCR1, NINT)              
+
+C              WRITE(6,'(/,                                             
+C   *     '' *** (CVCOOR: INTERNAL COORD GRAD (AFTER PROJRE) ***'')')   
+C              WRITE(FU6,'(5E15.6)') (DXINT(I), I=1,NINT)             
+C              WRITE(6,'(/,                                          
+C   *     '' *** (CVCOOR: FULL F-MATRIX (AFTER PROJRE) ***'')')    
+C              CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)               
+           END IF                                                
+
+
+           IF (.NOT.ISSAD) THEN       
+              CALL PROJF(FINT,DXINT,CORE(IBM),SCR1,SCR2,SCR3,GM          
+     *                    ,AMASIN,NINT,NCART)                            
+
+              IF(ICPR.or.(LGS(4).NE.0.AND.(MOD(LSAVE,NPRSMD).EQ.0)))THEN  
+                  WRITE(6,*) '*** FOR UNSCALED FC MATRIX ***'                 
+                  WRITE(6,'(/,                                           
+     *    '' *** (CVCOOR: FULL INTERNAL F-MATRIX (AFFTER PROJF) ***'')')         
+                  CALL PRSQ(FINT,NINT,NINT,NINT,NINT,6)                 
+              END IF                                                    
+ 
+              IF (ICPR) THEN                                           
+                  WRITE(FU6,9057)                                     
+ 9057             FORMAT(1X,'PROJ -RIGHT, FOLLOWED BY PROJ -LEFT')   
+                  CALL PRSQ(SCR2,NINT,NINT,NINT,NINT,FU6)           
+                  CALL PRSQ(SCR3,NINT,NINT,NINT,NINT,FU6)          
+              END IF                                              
+           END IF  
+C
+C     Diagnailze the unscaled force constant matrix to get ordinary        
+C     normal mode eigen vectors if the scaling force constant is          
+C     used only for potential or force constant scaling is not used      
+C
+            IF (REDUN) THEN     
+                 CALL GFDIA2(ISSAD,FINT,FREQI,AVEC,FLGM,EGNM,    
+     *                       SCR1,SCR2,SCR3,NINT) 
+            ELSE                                               
+                 CALL GFDIAG(ISSAD,GM,FINT,FREQI,AVEC,        
+     *                       SCR1,SCR2,SCR3,NINT)            
+            END IF                                          
+
+      END IF
+C
+C     save the scaled frequencies to the normal work space 
+C
+      IF (LGS3(1) .NE. 0) THEN                            
+          DO I = 1, N3TM                                 
+              FREQI(I) = FREQISC(I)                                        
+          END DO                                                          
+      END IF                                                             
+C
+C ********************* SCALING DONE  *************************         0211PJ01
+C
+
+
+C
+C PRINT RESULTS
+C
+      IF(ICPR)THEN
+         WRITE(FU6,9910)(AUTOCM*FREQI(I),I=1,NINT)
+         WRITE(FU6,9911)
+         CALL PRSQ(AVEC,NINT,NINT,NINT,NINT,FU6)
+ 9910    FORMAT(/1X,'VIBRATIONAL FREQUENCIES IN CM-1',
+     *   /,(1X,4F19.3))
+ 9911    FORMAT(/1X,'UNNORMALIZED NORMAL MODE VECTORS')
+      ENDIF
+
+C
+C CONVERT THE EIGENVECTORS FROM INTERNAL TO MASS WGTED CARTESIAN COORDINATES
+C
+C      CALL VECCON(AVEC,GM,CORE(IBI),SCR1,SCR2,SCR3
+C     >,AMASS,NINT,NCART)
+      CALL VECCON(AVEC,GM,CORE(IBI),SCR1,SCR2,SCR3
+     >,AMASS,NINT,NCART,REDUN)
+c
+c   move the unbound mode to first position for later calculation       0317YC99
+c
+      IF (ISSAD) THEN                                                   0317YC99
+        FREQ(1) = FREQI(1)                                              0317YC99
+        DO J = 1, NCART                                                 0317YC99
+          COF(J,1) = AVEC(J)                                            0317YC99
+        ENDDO                                                           0317YC99
+      ENDIF                                                             0317YC99
+
+C
+C IF REDUNDANT COORDINATE USED, REMOVE THE EIGENVECTORS WITH ZERO EIGENVALUES
+C
+      IF (REDUN) THEN
+         IF (ICODE(5).EQ.2.OR.ICODE(5).EQ.3) THEN 
+            NINT = N3 - 5
+         ELSE
+            NINT = N3 - 6
+         ENDIF
+         CALL REMOVEC (AVEC,FREQI,SCR3,NINT,NUMINT,NCART)
+      ENDIF 
+
+C
+C   When SS-T method is used 
+C
+      IF (LSST.EQ.1) THEN                                               0517JZ12
+        CALL DBARFREQ(ISSAD)
+        CALL VIBTOR(GM,FINT,NTOR,NINT,freqfac,DMTOR,DETD,TBH)
+      ENDIF
+C
+C  END of the SS-T code
+C
+
+C
+C PRINT RESULTS
+C
+      IF(ICPR)THEN
+         WRITE(FU6,9914)
+         CALL PRSQ(AVEC,NCART,NINT,NCART,NINT,FU6)
+ 9914    FORMAT(/1X,'AFTER VECCON, NORMAL MODE VECTORS IN MW CARTS')
+      ENDIF
+C
+C     STORE THE FREQUENCIES
+C     EIGENVECTORS INTO THE EXPECTED REGION, OVERWRITING THE CARTESIAN
+C     INFORMATION ALREADY OBTAINED
+C
+
+      CALL ICSAVE(ISSAD,IOP,AVEC,FREQI,SCR2,SCR3,SCR1
+     >               ,NINT,NCART)
+C
+
+
+      IF(ICPR)THEN
+         WRITE(FU6,9916)
+c        CALL PRSQ(COF,NCART,NCART,NCART,NCART,FU6)                     0330YC97
+         call prsq(cof, ncart, ncart, n3tm, n3tm, fu6)                  0201PJ01
+
+ 9916    FORMAT(/1X,'FULL SET OF CART NORMAL MODE VECTORS ')
+C
+C        check the orthogonality of final vectors
+c
+         INDS = 1
+         DO 200 I = 1,NCART 
+         DO 190 J = 1,NCART
+               SCR1(INDS) = COF(J,I)
+               INDS = INDS + 1
+  190       CONTINUE
+  200    CONTINUE
+C
+C        FORM THE OVERLAP MATRIX OF THE VECTORS
+C        SCR2 = SCR1(tr)*SCR1
+C
+         CALL MATX (SCR2,1,SCR1,0,SCR1,1,NCART,NCART,NCART,NCART)
+         WRITE(FU6,9917)
+ 9917    FORMAT(/1X,'OVERLAP MATRIX')
+         CALL PRSQ(SCR2,NCART,NCART,NCART,NCART,FU6) 
+      ENDIF
+c     call flush(6)
+c     deallocate(SCR1)
+c     deallocate(SCR2)
+c     deallocate(SCR3)
+c     deallocate(SCR1B)
+c     deallocate(SCR2B)
+c     deallocate(SCR3B)
+      RETURN
+      END SUBROUTINE cvcoor
+C
+C***********************************************************************
+C     REMOVEC
+C***********************************************************************
+C
+      SUBROUTINE removec (AVEC,FREQI,SCR,NINT,NUMINT,NCART)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      DIMENSION AVEC(NUMINT*NCART),SCR(NUMINT*NCART)
+      DIMENSION FREQI(NUMINT)
+c
+      AUTOCM = 2.19474627D+05
+C
+      DO I = 1, NUMINT*NCART
+         SCR(I) = AVEC(I)
+         AVEC(I) = 0.0d0
+      ENDDO
+C
+      NDIFF = NUMINT - NINT 
+      IF (NDIFF.LT.0) THEN
+         WRITE (6,*) 'Number of internal coordinates is less than the'   0604YC99
+         WRITE (6,*) 'the number of vibrational frequencies.'            0604YC99
+         STOP 'REMOVEC'                                                  0604YC99
+      ENDIF
+C
+      DO I = 1,NINT
+         FREQI(I) = FREQI(I+NDIFF)
+      ENDDO
+      DO I = NINT+1, NUMINT
+         FREQI(I) = 0.0d0
+      ENDDO
+      NBASE = NDIFF*NCART
+      DO I = 1,NCART*NINT
+        AVEC(I)  = SCR(NBASE+I)
+      ENDDO   
+      RETURN
+      END SUBROUTINE removec
+C
+C***********************************************************************
+C     PRNTBT
+C***********************************************************************
+C
+      SUBROUTINE prntbt(BT,NINT,MAXINT,MAXIN2)
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     PRINTS B-tensors stored in lower triangular matrices in clusters of 5
+C
+C     CALLED BY:
+C              FORMF2
+C
+      DIMENSION BT(MAXINT,MAXIN2)
+C
+      DO 15 IBT=1,NINT
+      WRITE(6,*)'FOR INTERNAL # ', IBT
+C
+      LOOP=NINT/5
+C
+      DO 10 I=1,LOOP
+      JFIRST=5*(I-1)+1
+      WRITE(6,44)(M,M=JFIRST,JFIRST+4)
+      L=0
+      DO 10 J=JFIRST,NINT
+      KFIRST=I*5-4
+      KLAST=KFIRST+L
+      IF(L.LT.4)L=L+1
+      WRITE(6,33)J,(BT(IBT,J*(J-1)/2+K),K=KFIRST,KLAST)
+   10 CONTINUE
+C
+      JFIRST=NINT-MOD(NINT,5)+1
+      KFIRST=JFIRST
+      WRITE(6,44)(M,M=JFIRST,NINT)
+      L=0
+C
+      DO 11 J=JFIRST,NINT
+      KLAST =KFIRST+L
+      IF(L.LT.4)L=L+1
+      WRITE(6,33)J,(BT(IBT,J*(J-1)/2+K),K=KFIRST,KLAST)
+   11 CONTINUE
+   15 CONTINUE
+C
+   33 FORMAT(1X,I3,5(1X,D13.6))
+   44 FORMAT(/,1X,5(I12,2X))
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE prntbt
+C
+C***********************************************************************
+C     PRSQ
+C***********************************************************************
+C
+      SUBROUTINE prsq(V,N,M,NDIM,MDIM,IW)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+C
+      DIMENSION V(NDIM,MDIM)
+C
+C     CALLED BY:
+C              ICFDIAG,CVCOOR
+C
+C     ----- PRINT OUT A SQUARE MATRIX -----
+C     -V- IS -N- ROWS BY -M- COLUMNS, WITH LEADING DIMENSION -NDIM-
+C
+C     PRINT 10 COLUMNS
+      MAX = 10 
+      IMAX = 0
+  100 IMIN = IMAX+1
+      IMAX = IMAX+MAX
+      IF (IMAX .GT. M) IMAX = M
+      WRITE (IW,9008)
+      WRITE (IW,9028) (I,I = IMIN,IMAX)
+      WRITE (IW,9008)
+      DO 120 J = 1,N
+  120 WRITE (IW,9048) J,(V(J,I),I = IMIN,IMAX)
+      IF (IMAX .LT. M) GO TO 100
+      RETURN
+ 9008 FORMAT(1X)
+ 9028 FORMAT(6X,10(4X,I4,4X))
+ 9048 FORMAT(I5,1X,10F12.7)
+      END SUBROUTINE prsq
+C
+C***********************************************************************
+C     EXPND
+C***********************************************************************
+C
+      SUBROUTINE expnd(A,B,N,ISYM)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+      DIMENSION A(*),B(N,*)
+      PARAMETER (ZERO=0.0D+00)
+C
+C     EXPAND TRIANGULAR MATRIX A TO SQUARE MATRIX B
+C     B IS SYMMETRIC IF ISYM=0, ANTISYMMETRIC OTHERWISE
+C
+      IJ = 0
+      IF (ISYM .NE. 0) THEN
+         DO 200 J = 1,N
+            DO 100 I = 1,J
+               IJ = IJ + 1
+               B(I,J) = A(IJ)
+               B(J,I) = -A(IJ)
+  100       CONTINUE
+            B(J,J) = ZERO
+  200    CONTINUE
+      ELSE
+         DO 300 J = 1,N
+         DO 300 I = 1,J
+            IJ = IJ + 1
+            B(I,J) = A(IJ)
+            B(J,I) = A(IJ)
+  300    CONTINUE
+      ENDIF
+      RETURN
+      END SUBROUTINE expnd
+C
+C***********************************************************************
+C     TRANG
+C***********************************************************************
+C
+      SUBROUTINE trang(DXINT,BI,DXX,MAXINT,MAXCAR,NINT,NCAR)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+C
+      DIMENSION BI(NCAR,NINT), DXX(MAXCAR),DXINT(MAXINT)
+C
+C TRANSFORM GRADIENT IN CARTESIANS TO INTERNAL COORDINATES
+C
+      DO 50 I=1,NINT
+         SUM = 0.0D0
+         DO 60 J=1,NCAR
+   60 SUM=SUM+BI(J,I)*DXX(J)
+   50 DXINT(I)= SUM
+C
+      RETURN
+      END SUBROUTINE trang
+C
+C***********************************************************************
+C     TRANFC
+C***********************************************************************
+C
+      SUBROUTINE tranfc(HFC,BI,WORK,HIFC,F2,NATOM,
+     > MAXINT,MAXCAR,MAXIN2,NINT,NCART)
+      use perconparam, only : maxca2
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     TRANSFORMS THE HARMONIC FORCE CONSTANTS TO INTERNAL COORDINATES
+C
+      PARAMETER (ZERO=0.D0)
+C
+      DIMENSION HFC(MAXCA2),BI(NCART,NINT)                              0317YC99
+      DIMENSION WORK(MAXCAR,MAXINT)
+      DIMENSION HIFC(MAXIN2)
+      DIMENSION F2(MAXIN2)
+C
+       NCAR = NCART                                                     0317YC99    
+C
+C     TRANSFORM THE FIRST INDEX
+C
+      DO 10 I=1,NINT
+         DO 20 J=1,NCAR
+            SUM=ZERO
+            DO 30 K=1,J
+               IPOINT=J*(J-1)/2+K
+               SUM=SUM+BI(K,I)*HFC(IPOINT)
+   30       CONTINUE
+            DO 40 K=J+1,NCAR
+               IPOINT=K*(K-1)/2+J
+               SUM=SUM+BI(K,I)*HFC(IPOINT)
+   40       CONTINUE
+         WORK(J,I)=SUM
+   20    CONTINUE
+   10 CONTINUE     
+C
+C     TRANSFORM THE SECOND INDEX
+C
+      IPOINT=0
+      DO 70 I=1,NINT
+         DO 80 J=1,I
+            IPOINT=IPOINT+1
+            SUM=ZERO
+            DO 90 K=1,NCAR
+               SUM=SUM+BI(K,I)*WORK(K,J)
+   90       CONTINUE
+            HIFC(IPOINT)=SUM - F2(IPOINT)
+   80    CONTINUE
+   70 CONTINUE
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE tranfc
+C
+C***********************************************************************
+C     FORMF2
+C***********************************************************************
+C
+      SUBROUTINE formf2(F2,BT,DXINT,MAXINT,MAXIN2,NINT)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+C      F2 = SUM [g(k) * BT(k,l)]
+C      l = nint*(nint+1)/2
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C FORM THE SECOND TERM OF INTERNAL FORCE CONSTANT MATRIX
+C
+      DIMENSION BT(MAXINT,MAXIN2),F2(MAXIN2),DXINT(MAXINT)
+C
+C        WRITE(6,'(/,
+C    >   '' *** (FORMF2: (DX/DR D2R/DX2 DX/DR)-TENSOR ***'')')
+C        CALL PRNTBT(BT,NINT,MAXINT,MAXIN2)
+C
+      DO 10 I = 1,NINT
+         DO 20 J = 1,I
+           IPOINT = I*(I-1)/2 + J 
+              SUM = 0.0D0
+              DO 30 K = 1,NINT
+                 SUM = SUM + BT(K,IPOINT)*DXINT(K)
+   30         CONTINUE
+         F2(IPOINT)=SUM
+   20    CONTINUE
+   10 CONTINUE
+      RETURN
+      END SUBROUTINE formf2
+
+C***********************************************************************
+C     CONOUT
+C***********************************************************************
+C
+      SUBROUTINE conout(NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,NATOM,        0905YC96
+     >    X,Y,Z,AL)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     PRINTS OUT THE INTERNAL COORDINATES
+C
+      CHARACTER*2 AL
+C
+      DIMENSION IBL(2,NBL),IBA(3,NBA),ITO(4,NTO),ILBE(3,NLBE)
+      DIMENSION X(NATOM),Y(NATOM),Z(NATOM),AL(NATOM)
+C
+      PARAMETER (ONE=1.D0, NINETY=90.D0)
+C
+      CONV=NINETY/DASIN(ONE)
+C
+      WRITE(6,'('' *** INTERNAL COORDINATES ***'',/)')
+C
+C     BOND LENGTHS
+C
+      WRITE(6,'('' BOND LENGTHS ('',I3,'')'',/)') NBL
+      DO 100 J=1,NBL/3+1
+      IMIN=3*J-2
+      IMAX=MIN(3*J,NBL)
+      WRITE(6,'(3(1X,I3,1X,''('',A2,I2,'' - '',A2,I2,'')'',F9.5))') 
+     > (I,AL(IBL(1,I)),IBL(1,I),AL(IBL(2,I)),IBL(2,I),
+     > DIST(IBL(1,I),IBL(2,I),X,Y,Z,NATOM),I=IMIN,IMAX)
+  100 CONTINUE
+C
+C     BOND ANGLES
+C
+      WRITE(6,'(/,'' BOND ANGLES ('',I3,'')'',/)') NBA
+      DO 200 J=1,NBA/2+1
+      IMIN=2*J-1
+      IMAX=MIN(2*J,NBA)
+      WRITE(6,'(2(1X,I3,1X,''('',A2,I2,'' - '',A2,I2,'' - '',A2,I2,
+     > '')'',F9.3))') (I+NBL,AL(IBA(1,I)),IBA(1,I),AL(IBA(2,I)),
+     > IBA(2,I),AL(IBA(3,I)),IBA(3,I),
+     > CONV*ANGL(IBA(1,I),IBA(2,I),IBA(3,I),X,Y,Z,NATOM),I=IMIN,IMAX)
+  200 CONTINUE
+C
+C     TORSIONAL ANGLES
+C
+      WRITE(6,'(/,'' TORSIONAL ANGLES ('',I3,'')'',/)') NTO
+      DO 300 J=1,NTO/2+1
+      IMIN=2*J-1
+      IMAX=MIN(2*J,NTO)
+      WRITE(6,'(2(1X,I3,1X,''('',A2,I2,'' - '',A2,I2,'' - '',A2,I2,
+     > '' - '',A2,I2,'')'',F8.2))') (I+NBL+NBA,AL(ITO(1,I)),ITO(1,I),
+     > AL(ITO(2,I)),ITO(2,I),AL(ITO(3,I)),ITO(3,I),AL(ITO(4,I)),
+     > ITO(4,I),CONV*PTORS(ITO(1,I),ITO(2,I),ITO(3,I),ITO(4,I),X,Y,Z,
+     > NATOM),I=IMIN,IMAX)
+  300 CONTINUE
+C
+C     LINEAR BEND - added 0920YC96
+C
+      WRITE(6,'(/,'' LINEAR BENDS ('',I3,'')'',/)') NLBE
+      DO 400 J=1,NLBE/2+1
+      IMIN=2*J-1
+      IMAX=MIN(2*J,NLBE)
+      WRITE(6,'(2(1X,I3,1X,''('',A2,I2,'' = '',A2,I2,'' = '',A2,I2,
+     > '')'',F9.3))') (I+NBL+NBA+NTO,
+     > AL(ILBE(1,I)),ILBE(1,I),AL(ILBE(2,I)),
+     > ILBE(2,I),AL(ILBE(3,I)),ILBE(3,I),
+     > CONV*ANGL(ILBE(1,I),ILBE(2,I),ILBE(3,I),X,Y,Z,NATOM),I=IMIN,IMAX)
+  400 CONTINUE
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE conout
+C
+C***********************************************************************
+C     DIST
+C***********************************************************************
+C
+      DOUBLE PRECISION FUNCTION DIST(I,J,X,Y,Z,NATOM)
+C
+C     CALLED BY:
+C              ANGL,BANGLE1,BMAT,BTENS,BTORSN,CONOUT,PTORS
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE DISTANCE I-J
+C
+      DIMENSION X(NATOM),Y(NATOM),Z(NATOM)
+C
+      DIST=DSQRT((X(I)-X(J))**2+(Y(I)-Y(J))**2+(Z(I)-Z(J))**2)
+      RETURN
+      END FUNCTION DIST
+C
+C***********************************************************************
+C     ANGL
+C***********************************************************************
+C
+      DOUBLE PRECISION FUNCTION ANGL(I,J,K,X,Y,Z,NATOM)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE ANGLE I-J-K
+C
+C     CALLED BY:
+C              BANGLE1,BMAT,BTENS,BTORSN,CONOUT,READINT,PTORS
+C
+      DIMENSION X(NATOM),Y(NATOM),Z(NATOM)
+C
+      ANGL=((X(J)-X(I))*(X(J)-X(K))+(Y(J)-Y(I))*(Y(J)-Y(K))+
+     > (Z(J)-Z(I))*(Z(J)-Z(K)))
+     > /(DIST(I,J,X,Y,Z,NATOM)*DIST(J,K,X,Y,Z,NATOM))
+      IF (dabs(ANGL).GT.1) ANGL = 1.0d0
+      ANGL=DACOS(ANGL)
+      RETURN
+      END FUNCTION ANGL
+C
+C***********************************************************************
+C     PTORS 
+C***********************************************************************
+C
+      DOUBLE PRECISION FUNCTION PTORS(I,J,K,L,X,Y,Z,NATOM)
+C
+C     CALLED BY:
+C              BTENS,BTORSN,CONOUT,CVCOOR,READINT
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE TORSIONAL ANGLE I-J-K-L
+C
+      DIMENSION X(NATOM),Y(NATOM),Z(NATOM)
+C
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RJK1=X(K)-X(J)
+      RJK2=Y(K)-Y(J)
+      RJK3=Z(K)-Z(J)
+      RKL1=X(L)-X(K)
+      RKL2=Y(L)-Y(K)
+      RKL3=Z(L)-Z(K)
+C
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      RKL=DIST(K,L,X,Y,Z,NATOM)
+      SIJK=SINE(ANGL(I,J,K,X,Y,Z,NATOM))
+      SJKL=SINE(ANGL(J,K,L,X,Y,Z,NATOM))
+C
+      CIJKL=((-RIJ2*RJK1+RIJ1*RJK2)*(-RJK2*RKL1+RJK1*RKL2)+
+     > (RIJ3*RJK1-RIJ1*RJK3)*(RJK3*RKL1-RJK1*RKL3)+
+     > (-RIJ3*RJK2+RIJ2*RJK3)*(-RJK3*RKL2+RJK2*RKL3))/
+     > (SIJK*SJKL*RIJ*RJK*RJK*RKL)
+      SIJKL=((-RIJ3*RJK2+RIJ2*RJK3)*RKL1+(RIJ3*RJK1-RIJ1*RJK3)*RKL2+
+     > (-RIJ2*RJK1+RIJ1*RJK2)*RKL3)/(RIJ*RJK*RKL*SIJK*SJKL)
+C
+      PTORS=DATAN2(SIJKL,CIJKL)
+      RETURN
+      END FUNCTION PTORS
+C
+C***********************************************************************
+C     SINE
+C***********************************************************************
+C
+      DOUBLE PRECISION FUNCTION sine(PHI)
+C
+C     CALLED BY:
+C              BANGLE1,BMAT,BTENS,BTORSN,PTORS 
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      PARAMETER (TINY=1.D-20)
+      SINE=DSIN(PHI)
+      IF(DABS(SINE).LT.TINY) SINE=DSIGN(TINY,SINE)
+      RETURN
+      END FUNCTION sine
+C
+C***********************************************************************
+C     COSE
+C***********************************************************************
+C
+      DOUBLE PRECISION FUNCTION cose(PHI)
+
+C
+C     CALLED BY:
+C              BANGLE1,BMAT,BTENS,BTORSN
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      PARAMETER (TINY=1.D-20)
+      COSE=DCOS(PHI)
+      IF(DABS(COSE).LT.TINY) COSE=DSIGN(TINY,COSE)
+      RETURN
+      END FUNCTION cose
+C
+C***********************************************************************
+C     READINT
+C***********************************************************************
+C
+      SUBROUTINE readint(IERR)
+      use common_inc
+      use perconparam
+      use rate_const
+C
+C     CALLED BY:
+C              RPATH
+C
+C     CALLS:
+C          UPCAS
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     READS INTDEF TO GET THE CONNECTIVITIES
+C
+      CHARACTER*1 A(80)
+C
+      DIMENSION IDA(4)
+      LOGICAL   LBEND                                                   0905YC96
+      LOGICAL   LIMP                                                    0414JZ14
+C
+      IERR=0
+      NBL=0
+      NLBE=0                                                            0905YC96
+      NBA=0
+      NTO=0
+      NIMP=0                                                            0414JZ14
+c
+      NINP=0                                                            1212PJ00
+c
+C
+C     READ THE STRING
+C
+ 9999 READ(5,'(80A1)',END=100) A
+C  I only goes to 78 to avoid array out-of-bounds                       1020BE05
+      DO 10 I=1,78                                                      1020BE05
+         CALL UPCAS(A(I),1)
+         CALL UPCAS(A(I+1),1)
+         CALL UPCAS(A(I+2),1)
+         IF(A(I).EQ.'E'.AND.A(I+1).EQ.'N'.AND.A(I+2).EQ.'D') GOTO 100
+  10  CONTINUE
+
+C
+C     LOOK FOR THE DATA
+C
+      ISTAT=0
+      IF(ICODAL(A,1).EQ.0) GOTO 7777
+      IF(ICODAL(A,1).GT.0) THEN
+      ISTAT=1
+      IDA(1)=ICODAL(A,1)
+      ENDIF
+C
+      DO 200 I=2,80
+C
+C     "DO NOTHING" CODES
+C
+      IF(ICODAL(A,I).EQ.-1.AND.ICODAL(A,I-1).EQ.-1) GOTO 200
+      IF(ICODAL(A,I).EQ.-2.AND.ICODAL(A,I-1).GE.0) GOTO 200
+C
+C     INVALID CODES
+C
+      IF(ICODAL(A,I).EQ.-4) GOTO 7777
+      IF(ICODAL(A,I).EQ.-3.AND.ICODAL(A,I-1).EQ.-3) GOTO 7777           0905YC96
+      IF(ICODAL(A,I).EQ.-3.AND.ICODAL(A,I-1).EQ.-2) GOTO 7777           0905YC96
+      IF(ICODAL(A,I).EQ.-3.AND.ICODAL(A,I-1).EQ.-1) GOTO 7777           0905YC96
+      IF(ICODAL(A,I).EQ.-2.AND.ICODAL(A,I-1).EQ.-3) GOTO 7777           0905YC96
+      IF(ICODAL(A,I).EQ.-1.AND.ICODAL(A,I-1).EQ.-3) GOTO 7777           0905YC96
+      IF(ICODAL(A,I).EQ.-2.AND.ICODAL(A,I-1).EQ.-2) GOTO 7777
+      IF(ICODAL(A,I).EQ.-2.AND.ICODAL(A,I-1).EQ.-1) GOTO 7777
+      IF(ICODAL(A,I).EQ.-1.AND.ICODAL(A,I-1).EQ.-2) GOTO 7777
+C
+C     BEGINNING OF NEW DATA
+C
+      IF(ICODAL(A,I).GE.0.AND.ICODAL(A,I-1).EQ.-1) THEN
+      IF(ICODAL(A,I).EQ.0) GOTO 7777
+      ISTAT=1
+      IDA(1)=ICODAL(A,I)
+      IDA(2)=0
+      IDA(3)=0
+      IDA(4)=0
+      LBEND = .FALSE.                                                   0905YC96
+      LIMP  = .FALSE.
+      ENDIF
+C
+C     CONTINUATION OF THE STRING OF NUMERALS
+C
+      IF(ICODAL(A,I).GE.0.AND.ICODAL(A,I-1).GE.0) THEN
+      IDA(ISTAT)=10*IDA(ISTAT)+ICODAL(A,I)
+      IF(IDA(ISTAT).GT.NATOM) GOTO 7777
+      ENDIF
+C
+C     NEXT STRING OF NUMERALS
+C    
+      IF((ICODAL(A,I).GE.0).AND.((ICODAL(A,I-1).EQ.-2).OR.              0905YC96
+     > (ICODAL(A,I-1).EQ.-3))) THEN                                     0905YC96
+      IF (ICODAL(A,I-1).EQ.-3) LBEND = .TRUE.                           0905YC96
+      ISTAT=ISTAT+1
+      IF(ISTAT.GT.4.OR.ICODAL(A,I).EQ.0) GOTO 7777
+      IDA(ISTAT)=ICODAL(A,I)
+      ENDIF
+C
+C     END OF DATA
+C
+      IF(ICODAL(A,I).EQ.-1.AND.ICODAL(A,I-1).GE.0) THEN
+      IF(ISTAT.EQ.3.AND.ICODAL(A,I-1).EQ.-3) LBEND = .TRUE.
+      IF(ISTAT.EQ.4.AND.ICODAL(A,I-1).EQ.-3) LIMP  = .TRUE.
+      GOTO (1,2,3,4) ISTAT
+C
+C     SINGLE ATOM - WRONG!
+C
+    1 GOTO 7777
+C
+C     BOND
+C    
+    2 IF(IDA(1).EQ.IDA(2)) GOTO 7777
+      NBL=NBL+1
+      IF(IDA(1).GT.IDA(2)) THEN
+      DO 21 K=1,2
+   21 IBL(K,NBL)=IDA(K)
+      ELSE
+      DO 22 K=1,2
+   22 IBL(K,NBL)=IDA(3-K)
+      ENDIF
+      
+c     RECORD THE OLD INPUT INDEX                                        1212PJ00
+      NINP = NINP+1                                                     1212PJ00
+      INPBL(NBL)=NINP                                                   1212PJ00
+      
+      GOTO 5
+C
+C     ANGLE / LINEAR BENDS 
+C
+    3 IF(IDA(1).EQ.IDA(2).OR.IDA(1).EQ.IDA(3).OR.IDA(2).EQ.IDA(3))
+     > GOTO 7777
+      IF (LBEND) THEN                                                   0905YC96
+         NLBE=NLBE+1                                                    0905YC96
+      ELSE                                                              0905YC96
+         NBA=NBA+1
+      ENDIF                                                             0905YC96
+      IF(IDA(1).GT.IDA(3)) THEN
+         DO K=1,3
+            IF (LBEND) THEN                                             0905YC96
+              ILBE(K,NLBE)=IDA(K)                                       0905YC96
+            ELSE                                                        0905YC96
+              IBA(K,NBA)=IDA(K)
+            ENDIF                                                       0905YC96
+         ENDDO                                                          0905YC96
+
+c
+      ELSE
+         DO K=1,3
+            IF (LBEND) THEN                                             0905YC96
+              ILBE(K,NLBE)=IDA(4-K)                                     0905YC96
+            ELSE                                                        0905YC96
+              IBA(K,NBA)=IDA(4-K)
+            ENDIF                                                       0905YC96
+         ENDDO                                                          0905YC96
+      ENDIF
+
+c     RECORD THE OLD INPUT INDEX                                        1230PJ00
+      IF (LBEND) THEN                                                   1230PJ00
+          NINP = NINP+1                                                 1230PJ00
+          INPLBE(NLBE)=NINP                                             1230PJ00
+      ELSE                                                              1230PJ00
+          NINP = NINP+1                                                 1212PJ00
+          INPBA(NBA)=NINP                                               1212PJ00
+      ENDIF                                                             1230PJ00
+
+      GOTO 5
+C
+C     TORSIONAL ANGLE
+C
+C     Improper torsion are added 
+C     J. Zheng April 2014
+    4 IF(IDA(1).EQ.IDA(2).OR.IDA(1).EQ.IDA(3).OR.IDA(1).EQ.IDA(4))
+     > GOTO 7777
+      IF(IDA(2).EQ.IDA(3).OR.IDA(2).EQ.IDA(4).OR.IDA(3).EQ.IDA(4))
+     > GOTO 7777
+      IF (LIMP) THEN
+       NIMP = NIMP + 1
+      ELSE
+       NTO=NTO+1
+      ENDIF
+      IF(IDA(1).GT.IDA(4)) THEN
+      DO K=1,4
+        IF(LIMP) THEN
+          IMP(K,NIMP)=IDA(K)
+        ELSE
+          ITO(K,NTO)=IDA(K)
+        ENDIF
+      ENDDO
+      ELSE
+      DO  K=1,4
+        IF(LIMP) THEN
+         IMP(K,NIMP)=IDA(5-K)
+        ELSE
+         ITO(K,NTO)=IDA(5-K)
+        ENDIF
+      ENDDO
+      ENDIF
+
+c     RECORD THE OLD INPUT INDEX                                        1212PJ00
+        NINP = NINP+1                                                   1212PJ00
+      IF(LIMP) THEN
+        INPTO(NTO)=NINP                                                 1212PJ00
+      ELSE
+        INPIM(NTO)=NINP
+      ENDIF
+
+    5 CONTINUE
+      ENDIF
+C
+  200 CONTINUE
+      GOTO 9999
+C
+C     END OF DATA COLLECTION, ORDER THE ATOMIC CONNECTIVITIES
+C
+  100 CONTINUE
+
+C
+  300 INVERS=0
+      DO 330 I=1,NBL-1
+      ICODE1=IBL(1,I)*NATOM+IBL(2,I)
+      ICODE2=IBL(1,I+1)*NATOM+IBL(2,I+1)
+      IF(ICODE1.EQ.ICODE2) GOTO 310
+      IF(ICODE1.GT.ICODE2) THEN
+      INVERS=INVERS+1 
+      IBL1=IBL(1,I)
+      IBL2=IBL(2,I)
+      IBL(1,I)=IBL(1,I+1)
+      IBL(2,I)=IBL(2,I+1)
+      IBL(1,I+1)=IBL1
+      IBL(2,I+1)=IBL2
+
+     
+c     EXCHANGE THE OLD INDEX                                            1212PJ00
+      INDTEMP=INPBL(I)                                                  1212PJ00                     
+      INPBL(I)=INPBL(I+1)                                               1212PJ00
+      INPBL(I+1)=INDTEMP                                                1212PJ00
+
+      ENDIF
+  330 CONTINUE
+      IF(INVERS.GT.0) GOTO 300
+      GOTO 600
+  310 NBL=NBL-1
+      WRITE(6,'('' WARNING: DUPLICATE BONDS: '',2I4)') 
+     > IBL(1,I),IBL(2,I)
+      DO 320 J=I,NBL
+      IBL(1,J)=IBL(1,J+1)
+      IBL(2,J)=IBL(2,J+1)
+
+  320 INPBL(J)=INPBL(J+1)                                               1212PJ00 
+
+      GOTO 300
+C
+  600 INVERS=0                                                          0905YC96
+      DO 630 I=1,NLBE-1                                                 0905YC96
+      ICODE1=(ILBE(1,I)*NATOM+ILBE(2,I))*NATOM+ILBE(3,I)                0905YC96
+      ICODE2=(ILBE(1,I+1)*NATOM+ILBE(2,I+1))*NATOM+ILBE(3,I+1)          0905YC96
+      IF(ICODE1.EQ.ICODE2) GOTO 610                                     0905YC96
+      IF(ICODE1.GT.ICODE2) THEN                                         0905YC96
+      INVERS=INVERS+1                                                   0905YC96
+      ILBE1=ILBE(1,I)                                                   0905YC96
+      ILBE2=ILBE(2,I)                                                   0905YC96
+      ILBE3=ILBE(3,I)                                                   0905YC96
+      ILBE(1,I)=ILBE(1,I+1)                                             0905YC96
+      ILBE(2,I)=ILBE(2,I+1)                                             0905YC96
+      ILBE(3,I)=ILBE(3,I+1)                                             0905YC96
+      ILBE(1,I+1)=ILBE1                                                 0905YC96
+      ILBE(2,I+1)=ILBE2                                                 0905YC96
+      ILBE(3,I+1)=ILBE3                                                 0905YC96
+
+    
+c     EXCHANGE THE OLD INDEX                                            1212PJ00
+      INDTEMP=INPLBE(I)                                                 1212PJ00
+      INPLBE(I)=INPLBE(I+1)                                             1212PJ00
+      INPLBE(I+1)=INDTEMP                                               1212PJ00
+
+      ENDIF                                                             0905YC96
+  630 CONTINUE                                                          0905YC96
+      IF(INVERS.GT.0) GOTO 600                                          0905YC96
+      GOTO 400                                                          0905YC96
+  610 NLBE=NLBE-1                                                       0905YC96
+      WRITE(6,'('' WARNING: DUPLICATE LINEAR BEND: '',3I4)')            0905YC96
+     > ILBE(1,I),ILBE(2,I),ILBE(3,I)                                    0905YC96
+      DO 620 J=I,NLBE                                                   0905YC96
+      ILBE(1,J)=ILBE(1,J+1)                                             0905YC96
+      ILBE(2,J)=ILBE(2,J+1)                                             0905YC96
+      ILBE(3,J)=ILBE(3,J+1)                                             0905YC96
+
+  620 INPLBE(J)=INPLBE(J+1)                                             1212PJ00 
+
+      GOTO 600                                                          0905YC96
+C
+  400 INVERS=0
+      DO 430 I=1,NBA-1
+      ICODE1=(IBA(1,I)*NATOM+IBA(2,I))*NATOM+IBA(3,I)
+      ICODE2=(IBA(1,I+1)*NATOM+IBA(2,I+1))*NATOM+IBA(3,I+1)
+      IF(ICODE1.EQ.ICODE2) GOTO 410
+      IF(ICODE1.GT.ICODE2) THEN
+      INVERS=INVERS+1 
+      IBA1=IBA(1,I)
+      IBA2=IBA(2,I)
+      IBA3=IBA(3,I)
+      IBA(1,I)=IBA(1,I+1)
+      IBA(2,I)=IBA(2,I+1)
+      IBA(3,I)=IBA(3,I+1)
+      IBA(1,I+1)=IBA1
+      IBA(2,I+1)=IBA2
+      IBA(3,I+1)=IBA3
+    
+c     EXCHANGE THE OLD INDEX                                            1212PJ00
+      INDTEMP=INPBA(I)                                                  1212PJ00
+      INPBA(I)=INPBA(I+1)                                               1212PJ00
+      INPBA(I+1)=INDTEMP                                                1212PJ00
+
+      ENDIF
+  430 CONTINUE
+      IF(INVERS.GT.0) GOTO 400
+      GOTO 500
+  410 NBA=NBA-1
+      WRITE(6,'('' WARNING: DUPLICATE ANGLES: '',3I4)') 
+     > IBA(1,I),IBA(2,I),IBA(3,I)
+      DO 420 J=I,NBA
+      IBA(1,J)=IBA(1,J+1)
+      IBA(2,J)=IBA(2,J+1)
+      IBA(3,J)=IBA(3,J+1)
+      
+  420 INPBA(J)=INPBA(J+1)                                               1212PJ00
+
+      GOTO 400
+C
+  500 INVERS=0
+      DO 530 I=1,NTO-1
+      ICODE1=((ITO(1,I)*NATOM+ITO(2,I))*NATOM+ITO(3,I))*NATOM+ITO(4,I)
+      ICODE2=
+     > ((ITO(1,I+1)*NATOM+ITO(2,I+1))*NATOM+ITO(3,I+1))*NATOM+ITO(4,I+1)
+      IF(ICODE1.EQ.ICODE2) GOTO 510
+C Reordering the torsions are removed by J. Zheng in order to use the
+C SS-T method more flexibly. April 2013
+C
+
+C     IF(ICODE1.GT.ICODE2) THEN
+C     INVERS=INVERS+1 
+C     ITO1=ITO(1,I)
+C     ITO2=ITO(2,I)
+C     ITO3=ITO(3,I)
+C     ITO4=ITO(4,I)
+C     ITO(1,I)=ITO(1,I+1)
+C     ITO(2,I)=ITO(2,I+1)
+C     ITO(3,I)=ITO(3,I+1)
+C     ITO(4,I)=ITO(4,I+1)
+C     ITO(1,I+1)=ITO1
+C     ITO(2,I+1)=ITO2
+C     ITO(3,I+1)=ITO3
+C     ITO(4,I+1)=ITO4
+
+C     EXCHANGE THE OLD INDEX                                            1212PJ00
+C     INDTEMP=INPTO(I)                                                  1212PJ00
+C     INPTO(I)=INPTO(I+1)                                               1212PJ00
+C     INPTO(I+1)=INDTEMP                                                1212PJ00
+
+C     ENDIF
+  530 CONTINUE
+      IF(INVERS.GT.0) GOTO 500
+      GOTO 700
+  510 NTO=NTO-1
+      WRITE(6,'('' WARNING: DUPLICATE TORSIONAL ANGLES: '',4I4)') 
+     > ITO(1,I),ITO(2,I),ITO(3,I),ITO(4,I)
+      DO 520 J=I,NTO
+      ITO(1,J)=ITO(1,J+1)
+      ITO(2,J)=ITO(2,J+1)
+      ITO(3,J)=ITO(3,J+1)
+      ITO(4,J)=ITO(4,J+1) 
+
+  520 INPTO(J)=INPTO(J+1)                                               1212PJ00
+
+      GOTO 500
+C
+C check number of internal coordinates   0626YC97
+C
+  700 NUMINT = NLBE*2 + NBL + NBA + NTO
+      IF(NUMINT.GT.MAXINT) THEN 
+      WRITE(6,*) 'FATAL ERROR: WRONG NUMBER OF INTERNAL COORDINATES'
+      WRITE(6,*) 'TOO MANY INTERNAL COORDINATES, REDEFINE param.inc'
+      STOP
+      ENDIF
+
+C
+C     ALL DONE, EXIT
+C
+
+      RETURN
+C
+C     ERROR SECTION
+C
+ 7777 WRITE(6,'
+     > (/,'' READINP DETECTED AN ERROR AND IS TERMINATING THIS RUN'',
+     > /,'' EXPLANATION OF THE ERROR APPEARS BELOW:'',/,1X,80A1)') A
+      WRITE(6,'(1X,80A1,/)') ('.',J=1,I-1),'?',('.',J=I+1,80)
+      WRITE(6,*) 'FATAL ERROR: INVALID CONNECTIVITY DATA'
+      IERR=1 
+      STOP
+      END SUBROUTINE readint
+C
+C***********************************************************************
+C     ICODAL
+C***********************************************************************
+      INTEGER FUNCTION ICODAL(A,I)
+C
+C     TRANSLATES THE ALPHANUMERIC CHARACTERS INTO AN INTEGER CODE
+C
+C     0-9      NUMERALS 0-9
+C     -1       BLANK
+C     -2       DASH
+C     -3       EQUAL SIGN                                               0905YC96
+C     -4       EVERYTHING ELSE                                          0905YC96
+C
+C     CALLED BY:
+C              READINT
+C 
+      CHARACTER*1 A(80),B(13)
+C
+      DATA B /'0','1','2','3','4','5','6','7','8','9',' ','-','='/      0905YC96
+C
+      DO 100 J=1,13                                                     0905YC96
+      IF(A(I).EQ.B(J)) THEN
+      ICODAL=J-1
+      IF(J.GT.10) ICODAL=10-J
+      RETURN
+      ENDIF
+  100 CONTINUE
+      ICODAL=-4                                                         0905YC96
+      RETURN
+      END FUNCTION ICODAL
+C
+C***********************************************************************
+C     BIMAT
+C***********************************************************************
+C
+      SUBROUTINE bimat(BM,BI,AMASS,U,GM,REDM,NATOM,NINT,NCART)
+      use perconparam
+
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE INVERSE OF BM
+C
+C     CALLED BY:
+C              CVCOOR
+C
+C     CALLS:
+C          MATINV
+C
+      PARAMETER (ZERO=0.D0,ONE=1.0D0)
+C
+      DIMENSION BM(NINT,NCART), BI(NCART,NINT)                          0317YC99
+      DIMENSION BMBMT(MAXINT,MAXINT),BINV(MAXINT,MAXINT)
+      DIMENSION INDX(MAXINT),U(NCART,NCART)                             0317YC99
+      DIMENSION AMASS(MAXCAR),UB(MAXCAR,MAXINT)
+      DIMENSION GM(NINT,NINT)
+      SAVE                                                              0601YC98
+C
+      NCAR = NCART                                                      0317YC99
+C
+C  FORM MATRIX THE U MATRIX
+C
+      DO 20 I = 1,NCAR
+      DO 10 J = 1,NCAR
+         U(I,J) = ZERO
+   10 CONTINUE
+   20 CONTINUE
+C
+      DO 25 I = 1,NCAR
+         U(I,I) = ONE/(REDM*AMASS(I)*AMASS(I))
+   25 CONTINUE
+
+C
+C     CONSTRUCT BM*U*BMT
+C
+      DO 30 I=1,NCAR
+      DO 30 J=1,NINT
+      SUM=ZERO
+      DO 40 K=1,NCAR
+   40 SUM=SUM+U(I,K)*BM(J,K)
+      UB(I,J)=SUM
+   30 CONTINUE
+C
+      DO 100 I=1,NINT
+      DO 100 J=1,NINT
+      SUM=ZERO
+      DO 110 K=1,NCAR
+  110 SUM=SUM+BM(I,K)*UB(K,J)
+      BMBMT(I,J)=SUM
+      GM(I,J) = SUM
+  100 CONTINUE
+C
+C   CONSTRUCT (BM*U*BMT)-1
+C
+      CALL MATINV(BMBMT,NINT,MAXINT,INDX,BINV)
+C      CALL MTINV2(BMBMT,NINT,NINT,BINV)
+C
+C     CALCULATE THE MATRIX A
+C
+      DO 400 I=1,NCAR
+      DO 400 J=1,NINT
+      SUM=ZERO
+      DO 500 K=1,NINT
+  500 SUM=SUM+UB(I,K)*BINV(K,J)
+  400 BI(I,J)=SUM
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE bimat
+C
+C***********************************************************************
+C     PROJRE 
+C***********************************************************************
+C
+      SUBROUTINE projre (DXINT,GGI,FINT,SCR,NINT)
+      use perconparam
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     PROJECT THE Gradient AND F MATRIX FROM REDUNDANT TO NONREDUNDANT 
+C
+      DIMENSION DXINT(NINT)
+      DIMENSION DXSCR(MAXINT)
+      DIMENSION FINT(NINT,NINT)
+      DIMENSION GGI(NINT,NINT)
+      DIMENSION SCR(NINT,NINT)
+C
+      DO 50 I=1,NINT
+         SUM = 0.0D0
+         DO 60 J=1,NINT
+   60 SUM=SUM+GGI(J,I)*DXINT(J)
+   50 DXSCR(I)= SUM
+      DO I = 1, NINT
+        DXINT(I) = DXSCR(I)
+      ENDDO
+C
+      CALL MATX(SCR,1,FINT,1,GGI,1,NINT,NINT,NINT,NINT)
+      CALL MATX(FINT,1,GGI,1,SCR,1,NINT,NINT,NINT,NINT)
+C
+      RETURN
+      END SUBROUTINE projre
+C
+C***********************************************************************
+C     BIMAT2
+C***********************************************************************
+C
+      SUBROUTINE bimat2(BM,BI,AMASS,U,GM,GGI,FLGM,
+     >                            EGNM,REDM,NATOM,NINT,NCART)           0315YC97
+      use perconparam
+
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE GENERALIZED INVERSE OF BM, a spinoff from bimat
+C     applied to the redundant internal coordinate case 
+C 
+C     CALLED BY:
+C              CVCOOR
+C
+C     CALLS:  RSPP
+C
+      PARAMETER (ZERO=0.D0,ONE=1.0D0)
+c
+c     some of them are returned with the exact dimension i.e. BM,BI,GM
+c
+      DIMENSION BM(NINT,NCART), BI(NCART,NINT)                          0317YC99
+      DIMENSION BMBMT(MAXINT,MAXINT),BINV(MAXINT,MAXINT)
+      DIMENSION U(NCART,NCART)                                          0317YC99
+      DIMENSION AMASS(MAXCAR),UB(MAXCAR,MAXINT)
+      DIMENSION GM(NINT,NINT),GGI(NINT,NINT)
+      DIMENSION FLGM(NINT),EGNM(NINT,NINT)
+
+C     FLGM   = EIGENVALUES OF THE G MATRIX = BuBT
+C     EGNM   = EIGENVECTORS OF THE G MATRIX
+C     FV1, FV2 = WORKING ARRAYS
+C 
+      DIMENSION FV1(MAXINT),FV2(MAXINT),FLVT(MAXINT,MAXINT)
+      DIMENSION SONE(MAXINT,MAXINT),EGNMT(MAXINT,MAXINT)
+      DIMENSION TEMPG(MAXINT*(MAXINT+1)/2),EXPAL(MAXINT,MAXINT)
+      DIMENSION TFLGM(MAXINT)
+      
+c --- Debugging print flag                                              0203PJ01   
+      logical icpr   
+
+      save                                                              0601YC98
+
+
+c --- set debugging flag                                                0203PJ01
+      icpr = .false.
+
+C
+      NCAR = NCART                                                      0317YC99
+C
+C  FORM MATRIX THE U MATRIX 
+C
+      DO 20 I = 1,NCAR
+      DO 10 J = 1,NCAR
+         U(I,J) = ZERO
+   10 CONTINUE
+   20 CONTINUE
+C
+      DO 25 I = 1,NCAR
+         U(I,I) = ONE/(REDM*AMASS(I)*AMASS(I))
+   25 CONTINUE
+
+c
+c --- Debugging Pu                                                      0202PJ01
+c
+      if (icpr) then 
+          write(fu6, *) '*** BIMAT2: U matrix ***'                      0202PJ01
+          call prsq(u, ncar, ncar, ncar, ncar, fu6)                     0202PJ01
+      end if
+
+C
+C     CONSTRUCT BM*U*BMT
+C
+      DO 30 I=1,NCAR
+      DO 30 J=1,NINT
+      SUM=ZERO
+      DO 40 K=1,NCAR
+   40 SUM=SUM+U(I,K)*BM(J,K)
+      UB(I,J)=SUM
+   30 CONTINUE   
+
+      DO 100 I=1,NINT
+      DO 100 J=1,NINT
+      SUM=ZERO
+      DO 110 K=1,NCAR
+  110 SUM=SUM+BM(I,K)*UB(K,J)
+      BMBMT(I,J) = SUM
+      GM(I,J) = SUM
+  100 CONTINUE       
+
+Ccheck
+      if (icpr) then
+      WRITE(6,'(/,                                                     
+     >'' *** (BIMAT2: UB-MATRIX ***'')')
+      CALL PRSQ(UB,NCAR,NINT,NCAR,NINT,6)
+      WRITE(6,'(/,
+     >'' *** (BIMAT2: (BUBT) -MATRIX ***'')')
+      CALL PRSQ(BMBMT,NINT,NINT,MAXINT,MAXINT,6)
+      end if
+c
+c   CONSTRUCT (BM*U*BMT)-1  
+C
+      NCOUNT = 1 
+      DO I = 1,NINT
+         DO J = 1,I
+            TEMPG(NCOUNT) = BMBMT(J,I)
+            NCOUNT = NCOUNT + 1 
+         ENDDO
+      ENDDO
+      CALL RSPP(MAXINT,NINT,MAXINT*(MAXINT+1)/2,TEMPG,
+     >          FLGM,1,EGNMT,FV1,FV2,IERR)
+Ccheck
+      if (icpr) then 
+      DO I = 1,NINT
+         WRITE (6,*) 'Eigenvalue ',I,' = ',FLGM(I)
+      ENDDO
+      end if
+c
+c  SETUP EIGENVECTOR MATRIX
+c
+      DO J = 1,NINT
+         DO I = 1,NINT
+            EGNM(I,J) = EGNMT(I,NINT-J+1)
+         ENDDO
+      ENDDO
+Ccheck
+      if (icpr) then 
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: EGNMT - MATRIX ***'')')
+      CALL PRSQ(EGNMT,NINT,NINT,MAXINT,MAXINT,6)
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: EGNM - MATRIX ***'')')
+      CALL PRSQ(EGNM,NINT,NINT,NINT,NINT,6)
+      end if
+C
+C   Set up the Matrix with Eigenvalues : note the limit is set to 3N-6
+c   need to generalized to 3N-5 : in descending order (of eigenvalues)
+c   but EXPAL has the inverse
+C
+      DO I = 1,NINT
+         DO J = 1,NINT
+            EXPAL (I,J) = 0.0d0
+         ENDDO
+      ENDDO
+c
+      DO I = 1, NINT
+         ICOUNT = NINT-I+1
+         IF (FLGM(ICOUNT).gt.1.0d-10) THEN
+             EXPAL(I,I) = 1.0d0/FLGM(ICOUNT)
+         ELSE
+             FLGM(ICOUNT) = 0.0d0
+         ENDIF
+         TFLGM(I)=FLGM(ICOUNT)
+      ENDDO
+      DO I = 1,NINT
+         FLGM(I)=TFLGM(I)
+      ENDDO
+Ccheck
+      if (icpr) then  
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: EXPAL -MATRIX ***'')')
+      CALL PRSQ(EXPAL,NINT,NINT,MAXINT,MAXINT,6)
+      end if
+c
+C   CALCULATE INVERSE G 
+C
+      DO 330 I=1,NINT
+         DO 330 J=1,NINT
+            SUM=ZERO
+            DO 340 K=1,NINT
+  340    SUM=SUM+EXPAL(I,K)*EGNM(J,K)
+         FLVT(I,J)=SUM
+  330 CONTINUE
+
+      DO 300 I=1,NINT
+         DO 300 J=1,NINT
+            SUM=ZERO
+            DO 310 K=1,NINT
+  310    SUM=SUM+EGNM(I,K)*FLVT(K,J)
+         BINV(I,J) = SUM
+  300 CONTINUE
+C
+      if (icpr) then
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: BINV -MATRIX ***'')')
+      CALL PRSQ(BINV,NINT,NINT,MAXINT,MAXINT,6)
+      end if
+c   
+C     CHECK G*Gi; EQUIVALENT TO THE PROJECTOR FROM REDUNDANT TO NONREDUNDANT
+C
+      DO I=1,NINT
+         DO J=1,NINT
+            SUM=ZERO
+            DO K=1,NINT
+               SUM=SUM+GM(I,K)*BINV(K,J)
+            ENDDO
+            GGI(I,J)=SUM
+          ENDDO
+      ENDDO
+C
+C     CALCULATE THE MATRIX A
+C
+Ccheck
+      if (icpr) then
+      WRITE(6,'(/,
+     >  '' *** (BIMAT2: uB - matrix ***'')')
+      CALL PRSQ(UB,NCAR,NINT,NCAR,NINT,6)
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: BINV - matrix ***'')')
+      CALL PRSQ(BINV,NINT,NINT,MAXINT,MAXINT,6)
+      end if
+C
+      DO I=1,NCAR
+        DO J=1,NINT
+          SUM=ZERO
+          DO K=1,NINT
+            SUM=SUM+UB(I,K)*BINV(K,J)
+          ENDDO
+          BI(I,J)=SUM
+        ENDDO
+      ENDDO
+C
+      if (icpr) then
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: A - MATRIX ***'')')
+      CALL PRSQ(BI,NCAR,NINT,NCAR,NINT,6)
+      end if
+c
+C    CHECK FOR INVERSE
+C
+       DO I=1,NINT
+         DO J=1,NINT
+           SUM=ZERO
+           DO K=1,NCAR
+              SUM=SUM+BM(I,K)*BI(K,J)
+           ENDDO
+           SONE(I,J)=SUM
+         ENDDO
+       ENDDO
+
+      if (icpr) then
+      WRITE(6,'(/,
+     >   '' *** (BIMAT2: B*A -MATRIX ***'')')
+      CALL PRSQ(SONE,NINT,NINT,MAXINT,MAXINT,6)
+      end if 
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE bimat2
+C
+C***********************************************************************
+C     MATINV
+C***********************************************************************
+C
+      SUBROUTINE matinv(A,N,NP,INDX,Y)
+C
+C     CALLED BY:
+C              BIMAT
+C
+C     CALLS:
+C          LUDCMP,LUBKSB
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION A(NP,NP),Y(NP,NP), INDX(NP)
+      DATA ONE/1.0D00/,ZERO/0.0D00/
+C
+	DO 10 I=1,N 
+		DO 11 J=1,N 
+                    Y(I,J)=ZERO
+11		CONTINUE
+           Y(I,I)=ONE
+10	CONTINUE
+	CALL LUDCMP(A,N,NP,INDX,D)
+	DO 13 J=1,NP
+	  CALL LUBKSB(A,N,NP,INDX,Y(1,J))
+13	CONTINUE
+      RETURN
+      END SUBROUTINE matinv
+C
+C***********************************************************************
+C     LUDCMP
+C***********************************************************************
+C
+      SUBROUTINE ludcmp(A,N,NP,INDX,D)
+      use perconparam
+C
+C     CALLED BY:
+C              MATINV
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      PARAMETER (TINY=1.0D-20)
+      DIMENSION A(NP,NP),INDX(N),VV(MAXINT)
+      DATA ONE/1.0D00/,ZERO/0.0D00/
+
+      D=ONE
+      DO 12 I=1,N
+        AAMAX=0.0D0
+        DO 11 J=1,N
+          IF (DABS(A(I,J)).GT.AAMAX) AAMAX=DABS(A(I,J))
+11      CONTINUE
+        IF (AAMAX.EQ.ZERO) THEN
+           WRITE(6,*) 'SINGULAR MATRIX'
+           STOP
+        ENDIF
+        VV(I)=ONE/AAMAX
+12    CONTINUE
+      DO 19 J=1,N
+        IF (J.GT.1) THEN
+          DO 14 I=1,J-1
+            SUM=A(I,J)
+            IF (I.GT.1)THEN
+              DO 13 K=1,I-1
+                SUM=SUM-A(I,K)*A(K,J)
+13            CONTINUE
+              A(I,J)=SUM
+            ENDIF
+14        CONTINUE
+        ENDIF
+        AAMAX=ZERO
+        DO 16 I=J,N
+          SUM=A(I,J)
+          IF (J.GT.1)THEN
+            DO 15 K=1,J-1
+              SUM=SUM-A(I,K)*A(K,J)
+15          CONTINUE
+            A(I,J)=SUM
+          ENDIF
+          DUM=VV(I)*DABS(SUM)
+          IF (DUM.GE.AAMAX) THEN
+            IMAX=I
+            AAMAX=DUM
+          ENDIF
+16      CONTINUE
+        IF (J.NE.IMAX)THEN
+          DO 17 K=1,N
+            DUM=A(IMAX,K)
+            A(IMAX,K)=A(J,K)
+            A(J,K)=DUM
+17        CONTINUE
+          D=-D
+          VV(IMAX)=VV(J)
+        ENDIF
+        INDX(J)=IMAX
+        IF(J.NE.N)THEN
+          IF(A(J,J).EQ.ZERO)A(J,J)=TINY
+          DUM=1.0D0/A(J,J)
+          DO 18 I=J+1,N
+            A(I,J)=A(I,J)*DUM
+18        CONTINUE
+        ENDIF
+19    CONTINUE
+      IF(A(N,N).EQ.ZERO)A(N,N)=TINY
+      RETURN
+      END SUBROUTINE ludcmp
+C
+C***********************************************************************
+C     LUBKSB
+C***********************************************************************
+C
+      SUBROUTINE lubksb(A,N,NP,INDX,B)
+C
+C     CALLED BY:
+C              MATINV
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION A(NP,NP),INDX(N),B(N)
+
+      DATA ZERO/0.0D00/
+
+      II=0
+      DO 12 I=1,N
+        LL=INDX(I)
+        SUM=B(LL)
+        B(LL)=B(I)
+        IF (II.NE.0)THEN
+          DO 11 J=II,I-1
+            SUM=SUM-A(I,J)*B(J)
+11        CONTINUE
+        ELSE IF (SUM.NE.ZERO) THEN
+          II=I
+        ENDIF
+        B(I)=SUM
+12    CONTINUE
+      DO 14 I=N,1,-1
+        SUM=B(I)
+        IF(I.LT.N)THEN
+          DO 13 J=I+1,N
+            SUM=SUM-A(I,J)*B(J)
+13        CONTINUE
+        ENDIF
+        B(I)=SUM/A(I,I)
+14    CONTINUE
+      RETURN
+      END SUBROUTINE lubksb
+C
+C***********************************************************************
+C     PRNTFC
+C***********************************************************************
+C
+      SUBROUTINE prntfc(HIFC,NINT,MAXIN2)
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     PRINTS A LOWER TRIANGULAR MATRIX (IN CLUSTERS OF 5)
+C
+      DIMENSION HIFC(MAXIN2)
+C
+      LOOP=NINT/5
+C
+      DO 10 I=1,LOOP
+      JFIRST=5*(I-1)+1
+      WRITE(6,44)(M,M=JFIRST,JFIRST+4)
+      L=0
+      DO 10 J=JFIRST,NINT
+      KFIRST=I*5-4
+      KLAST=KFIRST+L
+      IF(L.LT.4)L=L+1
+      WRITE(6,33)J,(HIFC(J*(J-1)/2+K),K=KFIRST,KLAST)
+   10 CONTINUE
+C
+      JFIRST=NINT-MOD(NINT,5)+1
+      KFIRST=JFIRST
+      WRITE(6,44)(M,M=JFIRST,NINT)
+      L=0
+C
+      DO 11 J=JFIRST,NINT
+      KLAST =KFIRST+L 
+      IF(L.LT.4)L=L+1
+      WRITE(6,33)J,(HIFC(J*(J-1)/2+K),K=KFIRST,KLAST)
+   11 CONTINUE
+C
+   33 FORMAT(1X,I3,5(1X,D13.6))
+   44 FORMAT(/,1X,5(I12,2X))
+C
+C     ALL DONE
+C
+      RETURN
+      END SUBROUTINE prntfc
+C
+C***********************************************************************
+C     BTENS
+C***********************************************************************
+C
+      SUBROUTINE btens 
+     > (NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,X,Y,Z,NATOM,BI,BT,NINT,NCAR,
+     >  MAXINT,MAXIN2,T)
+C
+C     CALLED BY:
+C              CVCOOR
+C     CALLS:
+C          BANGLE1,BTORSN
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES THE TENSOR DX/DR D2R/DX2 DX/DR
+C
+      DIMENSION IBL(2,NBL),IBA(3,NBA),ITO(4,NTO),ILBE(3,NLBE)           0906YC96
+      DIMENSION X(NATOM),Y(NATOM),Z(NATOM)
+      DIMENSION BI(NCAR,NINT),BT(MAXINT,MAXIN2)
+C
+      DIMENSION BTEN(78),BANIJK(9),BANJKL(9),BTIJKL(12)
+      DIMENSION INDEX(12),IBUMP(12)
+      DIMENSION T(3,3),BTEMP(81),TBAR(81)
+C
+      PARAMETER (ZERO=0.D0, ONE=1.D0, TWO=2.D0)
+C
+      DATA INDEX/1,1,1,2,2,2,3,3,3,4,4,4/
+      DATA IBUMP/0,1,2,0,1,2,0,1,2,0,1,2/
+C
+C
+C     ZERO THE BT TENSOR
+C
+      IPOINT=0
+      DO 10 I=1,NINT
+      DO 10 J=1,I
+      IPOINT=IPOINT+1
+      DO 11 K=1,NINT
+   11 BT(K,IPOINT)=ZERO
+   10 CONTINUE
+C
+C     BOND LENGTHS
+C
+      LINT = 0
+C
+      DO 20 IJ=1,NBL
+      LINT=LINT+1
+      I=IBL(1,IJ)
+      J=IBL(2,IJ)
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+C
+C     (I1,I1)->1
+C
+      BTEN(1)=ONE/RIJ-RIJ1**2/RIJ**3
+C
+C     (I1,I2)->2
+C
+      BTEN(2)=-(RIJ1*RIJ2/RIJ**3)
+C
+C     (I1,I3)->4
+C
+      BTEN(4)=-(RIJ1*RIJ3/RIJ**3)
+C
+C     (I1,J1)->7
+C
+      BTEN(7)=-(ONE/RIJ)+RIJ1**2/RIJ**3
+C
+C     (I1,J2)->11
+C
+      BTEN(11)=RIJ1*RIJ2/RIJ**3
+C
+C     (I1,J3)->16
+C
+      BTEN(16)=RIJ1*RIJ3/RIJ**3
+C
+C     (I2,I2)->3
+C
+      BTEN(3)=ONE/RIJ-RIJ2**2/RIJ**3
+C
+C     (I2,I3)->5
+C
+      BTEN(5)=-(RIJ2*RIJ3/RIJ**3)
+C
+C     (I2,J1)->8
+C
+      BTEN(8)=RIJ1*RIJ2/RIJ**3
+C
+C     (I2,J2)->12
+C
+      BTEN(12)=-(ONE/RIJ)+RIJ2**2/RIJ**3
+C
+C     (I2,J3)->17
+C
+      BTEN(17)=RIJ2*RIJ3/RIJ**3
+C
+C     (I3,I3)->6
+C
+      BTEN(6)=ONE/RIJ-RIJ3**2/RIJ**3
+C
+C     (I3,J1)->9
+C
+      BTEN(9)=RIJ1*RIJ3/RIJ**3
+C
+C     (I3,J2)->13
+C
+      BTEN(13)=RIJ2*RIJ3/RIJ**3
+C
+C     (I3,J3)->18
+C
+      BTEN(18)=-(ONE/RIJ)+RIJ3**2/RIJ**3
+C
+C     (J1,J1)->10
+C
+      BTEN(10)=ONE/RIJ-RIJ1**2/RIJ**3
+C
+C     (J1,J2)->14
+C
+      BTEN(14)=-(RIJ1*RIJ2/RIJ**3)
+C
+C     (J1,J3)->19
+C
+      BTEN(19)=-(RIJ1*RIJ3/RIJ**3)
+C
+C     (J2,J2)->15
+C
+      BTEN(15)=ONE/RIJ-RIJ2**2/RIJ**3
+C
+C     (J2,J3)->20
+C
+      BTEN(20)=-(RIJ2*RIJ3/RIJ**3)
+C
+C     (J3,J3)->21
+C
+      BTEN(21)=ONE/RIJ-RIJ3**2/RIJ**3
+C        
+      DO 30 II=1,NINT
+      DO 31 KK=1,II
+      SUM=ZERO
+C
+      DO 32 MC=1,6
+      M=3*IBL(INDEX(MC),IJ)-2+IBUMP(MC)
+      DO 33 NC=1,MC-1
+      N=3*IBL(INDEX(NC),IJ)-2+IBUMP(NC)
+      IPOINT=NC+MC*(MC-1)/2
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   33 CONTINUE
+ 
+      DO 34 NC=MC,6
+      N=3*IBL(INDEX(NC),IJ)-2+IBUMP(NC)
+      IPOINT=MC+NC*(NC-1)/2
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   34 CONTINUE
+   32 CONTINUE
+      IPOINT=II*(II-1)/2+KK
+      BT(LINT,IPOINT)=SUM
+   31 CONTINUE
+   30 CONTINUE
+   20 CONTINUE
+C
+C     BOND ANGLES
+C
+      DO 40 IJK=1,NBA
+      LINT=LINT+1
+      I=IBA(1,IJK)
+      J=IBA(2,IJK)
+      K=IBA(3,IJK)
+      CALL BANGLE1(I,J,K,X,Y,Z,NATOM,BANIJK)
+C
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RJK1=X(K)-X(J)
+      RJK2=Y(K)-Y(J)
+      RJK3=Z(K)-Z(J)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+      CIJK=COSE(PIJK)
+      SIJK=SINE(PIJK)
+C
+C     (I1,I1)->1
+C
+      BTEN(1)=(CIJK*RIJ**2-CIJK*RIJ1**2+
+     >TWO*SIJK*RIJ**2*RIJ1*BANIJK(1)-
+     >CIJK*RIJ**4*BANIJK(1)**2)/(SIJK*RIJ**4)
+C
+C     (I1,I2)->2
+C
+      BTEN(2)=-(CIJK*RIJ1*RIJ2/(SIJK*RIJ**4))+
+     >RIJ2*BANIJK(1)/RIJ**2+RIJ1*BANIJK(2)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(2)/SIJK
+C
+C     (I1,I3)->4
+C
+      BTEN(4)=-(CIJK*RIJ1*RIJ3/(SIJK*RIJ**4))+
+     >RIJ1*BANIJK(3)/RIJ**2+RIJ3*BANIJK(1)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(1)/SIJK
+C
+C     (I1,J1)->7
+C
+      BTEN(7)=-(CIJK/(SIJK*RIJ**2))+CIJK*RIJ1**2/(SIJK*RIJ**4)+
+     >ONE/(SIJK*RIJ*RJK)+CIJK*RIJ1*RJK1/(SIJK*RIJ**2*RJK**2)-
+     >RIJ1*BANIJK(1)/RIJ**2+RJK1*BANIJK(1)/RJK**2+
+     >RIJ1*BANIJK(4)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(4)/SIJK
+C
+C     (I1,J2)->11
+C
+      BTEN(11)=CIJK*RIJ1*RIJ2/(SIJK*RIJ**4)+
+     >CIJK*RIJ1*RJK2/(SIJK*RIJ**2*RJK**2)-
+     >RIJ2*BANIJK(1)/RIJ**2+RJK2*BANIJK(1)/RJK**2+
+     >RIJ1*BANIJK(5)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(5)/SIJK
+C
+C     (I1,J3)->16
+C
+      BTEN(16)=CIJK*RIJ1*RIJ3/(SIJK*RIJ**4)+
+     >CIJK*RIJ1*RJK3/(SIJK*RIJ**2*RJK**2)-
+     >RIJ3*BANIJK(1)/RIJ**2+RJK3*BANIJK(1)/RJK**2+
+     >RIJ1*BANIJK(6)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(6)/SIJK
+C
+C     (I1,K1)->22
+C
+      BTEN(22)=-((RIJ*RJK+CIJK*RIJ1*RJK1+
+     >SIJK*RIJ**2*RJK1*BANIJK(1)-
+     >SIJK*RIJ1*RJK**2*BANIJK(7)+
+     >CIJK*RIJ**2*RJK**2*BANIJK(1)*BANIJK(7))/
+     >(SIJK*RIJ**2*RJK**2))
+C
+C     (I1,K2)->29
+C
+      BTEN(29)=-(CIJK*RIJ1*RJK2/(SIJK*RIJ**2*RJK**2))-
+     >RJK2*BANIJK(1)/RJK**2+RIJ1*BANIJK(8)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(8)/SIJK
+C
+C     (I1,K3)->37
+C
+      BTEN(37)=-(CIJK*RIJ1*RJK3/(SIJK*RIJ**2*RJK**2))-
+     >RJK3*BANIJK(1)/RJK**2+RIJ1*BANIJK(9)/RIJ**2-
+     >CIJK*BANIJK(1)*BANIJK(9)/SIJK
+C
+C     (I2,I2)->3
+C
+      BTEN(3)=(CIJK*RIJ**2-CIJK*RIJ2**2+
+     >TWO*SIJK*RIJ**2*RIJ2*BANIJK(2)-
+     >CIJK*RIJ**4*BANIJK(2)**2)/(SIJK*RIJ**4)
+C
+C     (I2,I3)->5
+C
+      BTEN(5)=-(CIJK*RIJ2*RIJ3/(SIJK*RIJ**4))+
+     >RIJ2*BANIJK(3)/RIJ**2+RIJ3*BANIJK(2)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(2)/SIJK
+C
+C     (I2,J1)->8
+C
+      BTEN(8)=CIJK*RIJ1*RIJ2/(SIJK*RIJ**4)+
+     >CIJK*RIJ2*RJK1/(SIJK*RIJ**2*RJK**2)-
+     >RIJ1*BANIJK(2)/RIJ**2+RJK1*BANIJK(2)/RJK**2+
+     >RIJ2*BANIJK(4)/RIJ**2-
+     >CIJK*BANIJK(2)*BANIJK(4)/SIJK
+C
+C     (I2,J2)->12
+C
+      BTEN(12)=-(CIJK/(SIJK*RIJ**2))+CIJK*RIJ2**2/(SIJK*RIJ**4)+
+     >ONE/(SIJK*RIJ*RJK)+CIJK*RIJ2*RJK2/(SIJK*RIJ**2*RJK**2)-
+     >RIJ2*BANIJK(2)/RIJ**2+RJK2*BANIJK(2)/RJK**2+
+     >RIJ2*BANIJK(5)/RIJ**2-
+     >CIJK*BANIJK(2)*BANIJK(5)/SIJK
+C
+C     (I2,J3)->17
+C
+      BTEN(17)=CIJK*RIJ2*RIJ3/(SIJK*RIJ**4)+
+     >CIJK*RIJ2*RJK3/(SIJK*RIJ**2*RJK**2)-
+     >RIJ3*BANIJK(2)/RIJ**2+RJK3*BANIJK(2)/RJK**2+
+     >RIJ2*BANIJK(6)/RIJ**2-
+     >CIJK*BANIJK(2)*BANIJK(6)/SIJK
+C
+C     (I2,K1)->23
+C
+      BTEN(23)=-(CIJK*RIJ2*RJK1/(SIJK*RIJ**2*RJK**2))-
+     >RJK1*BANIJK(2)/RJK**2+RIJ2*BANIJK(7)/RIJ**2-
+     >CIJK*BANIJK(2)*BANIJK(7)/SIJK
+C
+C     (I2,K2)->30
+C
+      BTEN(30)=-((RIJ*RJK+CIJK*RIJ2*RJK2+
+     >SIJK*RIJ**2*RJK2*BANIJK(2)-
+     >SIJK*RIJ2*RJK**2*BANIJK(8)+
+     >CIJK*RIJ**2*RJK**2*BANIJK(2)*BANIJK(8))/
+     >(SIJK*RIJ**2*RJK**2))
+C
+C     (I2,K3)->38
+C
+      BTEN(38)=-(CIJK*RIJ2*RJK3/(SIJK*RIJ**2*RJK**2))-
+     >RJK3*BANIJK(2)/RJK**2+RIJ2*BANIJK(9)/RIJ**2-
+     >CIJK*BANIJK(2)*BANIJK(9)/SIJK
+C
+C     (I3,I3)->6
+C
+      BTEN(6)=(CIJK*RIJ**2-CIJK*RIJ3**2+
+     >TWO*SIJK*RIJ**2*RIJ3*BANIJK(3)-
+     >CIJK*RIJ**4*BANIJK(3)**2)/
+     >(SIJK*RIJ**4)
+C
+C     (I3,J1)->9
+C
+      BTEN(9)=CIJK*RIJ1*RIJ3/(SIJK*RIJ**4)+
+     >CIJK*RIJ3*RJK1/(SIJK*RIJ**2*RJK**2)-RIJ1*BANIJK(3)/RIJ**2+
+     >RJK1*BANIJK(3)/RJK**2+RIJ3*BANIJK(4)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(4)/SIJK
+C
+C     (I3,J2)->13
+C
+      BTEN(13)=CIJK*RIJ2*RIJ3/(SIJK*RIJ**4)+
+     >CIJK*RIJ3*RJK2/(SIJK*RIJ**2*RJK**2)-RIJ2*BANIJK(3)/RIJ**2+
+     >RJK2*BANIJK(3)/RJK**2+RIJ3*BANIJK(5)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(5)/SIJK
+C
+C     (I3,J3)->18
+C
+      BTEN(18)=-(CIJK/(SIJK*RIJ**2))+CIJK*RIJ3**2/(SIJK*RIJ**4)+
+     >ONE/(SIJK*RIJ*RJK)+CIJK*RIJ3*RJK3/(SIJK*RIJ**2*RJK**2)-
+     >RIJ3*BANIJK(3)/RIJ**2+RJK3*BANIJK(3)/RJK**2+
+     >RIJ3*BANIJK(6)/RIJ**2-CIJK*BANIJK(3)*BANIJK(6)/SIJK
+C
+C     (I3,K1)->24
+C
+      BTEN(24)=-(CIJK*RIJ3*RJK1/(SIJK*RIJ**2*RJK**2))-
+     >RJK1*BANIJK(3)/RJK**2+RIJ3*BANIJK(7)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(7)/SIJK
+C
+C     (I3,K2)->31
+C
+      BTEN(31)=-(CIJK*RIJ3*RJK2/(SIJK*RIJ**2*RJK**2))-
+     >RJK2*BANIJK(3)/RJK**2+RIJ3*BANIJK(8)/RIJ**2-
+     >CIJK*BANIJK(3)*BANIJK(8)/SIJK
+C
+C     (I3,K3)->39
+C
+      BTEN(39)=-((RIJ*RJK+CIJK*RIJ3*RJK3+
+     >SIJK*RIJ**2*RJK3*BANIJK(3)-
+     >SIJK*RIJ3*RJK**2*BANIJK(9)+
+     >CIJK*RIJ**2*RJK**2*BANIJK(3)*BANIJK(9))/
+     >(SIJK*RIJ**2*RJK**2))
+C
+C     (J1,J1)->10
+C
+      BTEN(10)=CIJK/(SIJK*RIJ**2)-CIJK*RIJ1**2/(SIJK*RIJ**4)+
+     >CIJK/(SIJK*RJK**2)-2/(SIJK*RIJ*RJK)-
+     >TWO*CIJK*RIJ1*RJK1/(SIJK*RIJ**2*RJK**2)-
+     >CIJK*RJK1**2/(SIJK*RJK**4)-
+     >TWO*RIJ1*BANIJK(4)/RIJ**2+
+     >TWO*RJK1*BANIJK(4)/RJK**2-CIJK*BANIJK(4)**2/SIJK
+C
+C     (J1,J2)->14
+C
+      BTEN(14)=-(CIJK*RIJ1*RIJ2/(SIJK*RIJ**4))-
+     >CIJK*RIJ2*RJK1/(SIJK*RIJ**2*RJK**2)-
+     >CIJK*RIJ1*RJK2/(SIJK*RIJ**2*RJK**2)-CIJK*RJK1*RJK2/(SIJK*RJK**4)-
+     >RIJ2*BANIJK(4)/RIJ**2+RJK2*BANIJK(4)/RJK**2-
+     >RIJ1*BANIJK(5)/RIJ**2+RJK1*BANIJK(5)/RJK**2-
+     >CIJK*BANIJK(4)*BANIJK(5)/SIJK
+C
+C     (J1,J3)->19
+C
+      BTEN(19)=-(CIJK*RIJ1*RIJ3/(SIJK*RIJ**4))-
+     >CIJK*RIJ3*RJK1/(SIJK*RIJ**2*RJK**2)-
+     >CIJK*RIJ1*RJK3/(SIJK*RIJ**2*RJK**2)-CIJK*RJK1*RJK3/(SIJK*RJK**4)-
+     >RIJ1*BANIJK(6)/RIJ**2+RJK1*BANIJK(6)/RJK**2-
+     >RIJ3*BANIJK(4)/RIJ**2+RJK3*BANIJK(4)/RJK**2-
+     >CIJK*BANIJK(6)*BANIJK(4)/SIJK
+C
+C     (J1,K1)->25
+C
+      BTEN(25)=-(CIJK/(SIJK*RJK**2))+ONE/(SIJK*RIJ*RJK)+
+     >CIJK*RIJ1*RJK1/(SIJK*RIJ**2*RJK**2)+CIJK*RJK1**2/(SIJK*RJK**4)-
+     >RJK1*BANIJK(4)/RJK**2-RIJ1*BANIJK(7)/RIJ**2+
+     >RJK1*BANIJK(7)/RJK**2-
+     >CIJK*BANIJK(4)*BANIJK(7)/SIJK
+C
+C     (J1,K2)->32
+C
+      BTEN(32)=CIJK*RIJ1*RJK2/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK1*RJK2/(SIJK*RJK**4)-RJK2*BANIJK(4)/RJK**2-
+     >RIJ1*BANIJK(8)/RIJ**2+RJK1*BANIJK(8)/RJK**2-
+     >CIJK*BANIJK(4)*BANIJK(8)/SIJK
+C
+C     (J1,K3)->40
+C
+      BTEN(40)=CIJK*RIJ1*RJK3/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK1*RJK3/(SIJK*RJK**4)-RJK3*BANIJK(4)/RJK**2-
+     >RIJ1*BANIJK(9)/RIJ**2+RJK1*BANIJK(9)/RJK**2-
+     >CIJK*BANIJK(4)*BANIJK(9)/SIJK
+C
+C     (J2,J2)->15
+C
+      BTEN(15)=CIJK/(SIJK*RIJ**2)-CIJK*RIJ2**2/(SIJK*RIJ**4)+
+     >CIJK/(SIJK*RJK**2)-2/(SIJK*RIJ*RJK)-
+     >TWO*CIJK*RIJ2*RJK2/(SIJK*RIJ**2*RJK**2)
+     >-CIJK*RJK2**2/(SIJK*RJK**4)-
+     >TWO*RIJ2*BANIJK(5)/RIJ**2+
+     >TWO*RJK2*BANIJK(5)/RJK**2-CIJK*BANIJK(5)**2/SIJK
+C
+C     (J2,J3)->20
+C
+      BTEN(20)=-(CIJK*RIJ2*RIJ3/(SIJK*RIJ**4))-
+     >CIJK*RIJ3*RJK2/(SIJK*RIJ**2*RJK**2)-
+     >CIJK*RIJ2*RJK3/(SIJK*RIJ**2*RJK**2)-CIJK*RJK2*RJK3/(SIJK*RJK**4)-
+     >RIJ2*BANIJK(6)/RIJ**2+RJK2*BANIJK(6)/RJK**2-
+     >RIJ3*BANIJK(5)/RIJ**2+RJK3*BANIJK(5)/RJK**2-
+     >CIJK*BANIJK(6)*BANIJK(5)/SIJK
+C
+C     (J2,K1)->26
+C
+      BTEN(26)=CIJK*RIJ2*RJK1/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK1*RJK2/(SIJK*RJK**4)-RJK1*BANIJK(5)/RJK**2-
+     >RIJ2*BANIJK(7)/RIJ**2+RJK2*BANIJK(7)/RJK**2-
+     >CIJK*BANIJK(5)*BANIJK(7)/SIJK
+C
+C     (J2,K2)->33
+C
+      BTEN(33)=-(CIJK/(SIJK*RJK**2))+ONE/(SIJK*RIJ*RJK)+
+     >CIJK*RIJ2*RJK2/(SIJK*RIJ**2*RJK**2)+CIJK*RJK2**2/(SIJK*RJK**4)-
+     >RJK2*BANIJK(5)/RJK**2-RIJ2*BANIJK(8)/RIJ**2+
+     >RJK2*BANIJK(8)/RJK**2-
+     >CIJK*BANIJK(5)*BANIJK(8)/SIJK
+C
+C     (J2,K3)->41
+C
+      BTEN(41)=CIJK*RIJ2*RJK3/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK2*RJK3/(SIJK*RJK**4)-RJK3*BANIJK(5)/RJK**2-
+     >RIJ2*BANIJK(9)/RIJ**2+RJK2*BANIJK(9)/RJK**2-
+     >CIJK*BANIJK(5)*BANIJK(9)/SIJK
+C
+C     (J3,J3)->21
+C
+      BTEN(21)=CIJK/(SIJK*RIJ**2)-CIJK*RIJ3**2/(SIJK*RIJ**4)+
+     >CIJK/(SIJK*RJK**2)-2/(SIJK*RIJ*RJK)-
+     >TWO*CIJK*RIJ3*RJK3/(SIJK*RIJ**2*RJK**2)-
+     >CIJK*RJK3**2/(SIJK*RJK**4)-
+     >TWO*RIJ3*BANIJK(6)/RIJ**2+TWO*RJK3*BANIJK(6)/RJK**2-
+     >CIJK*BANIJK(6)**2/SIJK
+C
+C     (J3,K1)->27
+C
+      BTEN(27)=CIJK*RIJ3*RJK1/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK1*RJK3/(SIJK*RJK**4)-RJK1*BANIJK(6)/RJK**2-
+     >RIJ3*BANIJK(7)/RIJ**2+RJK3*BANIJK(7)/RJK**2-
+     >CIJK*BANIJK(6)*BANIJK(7)/SIJK
+C
+C     (J3,K2)->34
+C
+      BTEN(34)=CIJK*RIJ3*RJK2/(SIJK*RIJ**2*RJK**2)+
+     >CIJK*RJK2*RJK3/(SIJK*RJK**4)-RJK2*BANIJK(6)/RJK**2-
+     >RIJ3*BANIJK(8)/RIJ**2+RJK3*BANIJK(8)/RJK**2-
+     >CIJK*BANIJK(6)*BANIJK(8)/SIJK
+C
+C     (J3,K3)->42
+C
+      BTEN(42)=-(CIJK/(SIJK*RJK**2))+ONE/(SIJK*RIJ*RJK)+
+     >CIJK*RIJ3*RJK3/(SIJK*RIJ**2*RJK**2)+CIJK*RJK3**2/(SIJK*RJK**4)-
+     >RJK3*BANIJK(6)/RJK**2-RIJ3*BANIJK(9)/RIJ**2+
+     >RJK3*BANIJK(9)/RJK**2-CIJK*BANIJK(6)*BANIJK(9)/SIJK
+C
+C     (K1,K1)->28
+C
+      BTEN(28)=(CIJK*RJK**2-CIJK*RJK1**2-
+     >TWO*SIJK*RJK**2*RJK1*BANIJK(7)-
+     >CIJK*RJK**4*BANIJK(7)**2)/(SIJK*RJK**4)
+C
+C     (K1,K2)->35
+C
+      BTEN(35)=-(CIJK*RJK1*RJK2/(SIJK*RJK**4))-
+     >RJK2*BANIJK(7)/RJK**2-RJK1*BANIJK(8)/RJK**2-
+     >CIJK*BANIJK(7)*BANIJK(8)/SIJK
+C
+C     (K1,K3)->43
+C
+      BTEN(43)=-(CIJK*RJK1*RJK3/(SIJK*RJK**4))-
+     >RJK1*BANIJK(9)/RJK**2-RJK3*BANIJK(7)/RJK**2-
+     >CIJK*BANIJK(9)*BANIJK(7)/SIJK
+C
+C     (K2,K2)->36
+C
+      BTEN(36)=(CIJK*RJK**2-CIJK*RJK2**2-
+     >TWO*SIJK*RJK**2*RJK2*BANIJK(8)-
+     >CIJK*RJK**4*BANIJK(8)**2)/(SIJK*RJK**4)
+C
+C     (K2,K3)->44
+C
+      BTEN(44)=-(CIJK*RJK2*RJK3/(SIJK*RJK**4))-
+     >RJK2*BANIJK(9)/RJK**2-RJK3*BANIJK(8)/RJK**2-
+     >CIJK*BANIJK(9)*BANIJK(8)/SIJK
+C
+C     (K3,K3)->45
+C
+      BTEN(45)=(CIJK*RJK**2-CIJK*RJK3**2-
+     >TWO*SIJK*RJK**2*RJK3*BANIJK(9)-
+     >CIJK*RJK**4*BANIJK(9)**2)/
+     >(SIJK*RJK**4)
+C
+      DO 41 II=1,NINT
+      DO 41 KK=1,II
+      SUM=ZERO
+C
+      DO 42 MC=1,9
+      M=3*IBA(INDEX(MC),IJK)-2+IBUMP(MC)
+      DO 43 NC=1,MC-1
+      N=3*IBA(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=MC*(MC-1)/2+NC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   43 CONTINUE
+C
+      DO 42 NC=MC,9
+      N=3*IBA(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=NC*(NC-1)/2+MC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   42 CONTINUE
+      IPOINT=II*(II-1)/2+KK
+      BT(LINT,IPOINT)=SUM
+   41 CONTINUE        
+   40 CONTINUE
+C
+C   linear bends - added 09xxYC96
+C
+      DO 60 IJK=1,NLBE
+      LINT=LINT+1
+      I=ILBE(1,IJK)
+      J=ILBE(2,IJK)
+      K=ILBE(3,IJK)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      RIJT2=RIJ*RIJ
+      RJKT2=RJK*RJK
+      RIJT3=RIJ*RIJ*RIJ
+      RJKT3=RJK*RJK*RJK
+      DO IM = 1,45
+       BTEN(IM) = ZERO
+      ENDDO
+      DO KM = 1,81
+       TBAR(KM)= ZERO
+      ENDDO
+C set up tbar (transpose)
+C is a diagonal matrix with T as blocks
+C
+       DO KM = 1,3
+         DO JM = 1,3
+           DO IM = 1,3
+            TBAR((KM-1)*30+IM+(JM-1)*9)=T(IM,JM)
+           ENDDO
+         ENDDO
+      ENDDO  
+C
+C  Ry mode; From MATHEMATICA
+C
+      BTEN(10) = 1.0d0/(RIJ*RJKT2) + 1.0d0/RIJT3
+      BTEN(7)  = 1.0d0/RIJT3
+      BTEN(25) = 1.0d0/(RIJ*RJKT2)
+      BTEN(14) = 1.0d0/(RIJ*RJKT2) + 1.0d0/RIJT3
+      BTEN(8)  = 1.0d0/RIJT3
+      BTEN(32) = 1.0d0/(RIJ*RJKT2)
+      BTEN(19) = -1.0d0+1.0d0/(RIJ*RJK)+(RIJ*RJK)+
+     >           1.0d0/(RIJ*RJKT2)-RIJT2+1.0d0/RIJT3
+      BTEN(9)  = -1.0d0/(RIJ*RJK)+RIJT2+1.0d0/RIJT3
+      BTEN(40) = 1.0d0/(RIJ*RJK)-(RIJ*RJK)+1.0d0/(RIJ*RJKT2)
+      BTEN(16) = 1.0d0/RIJT2
+      BTEN(4)  = -1.0d0/RIJT2
+      BTEN(27) = -1.0d0/RJKT2
+      BTEN(43) = 1.0d0/RJKT2
+      CALL MATX(BTEMP,1,BTEN,-1,TBAR,1,9,9,9,9)
+      CALL MATX(BTEN,-1,TBAR,0,BTEMP,1,9,9,9,9)
+C
+      DO 61 II=1,NINT
+      DO 61 KK=1,II
+      SUM=ZERO
+      DO 62 MC=1,9
+      M=3*ILBE(INDEX(MC),IJK)-2+IBUMP(MC)
+      DO 63 NC=1,MC-1
+      N=3*ILBE(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=MC*(MC-1)/2+NC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   63 CONTINUE
+C
+      DO 62 NC=MC,9
+      N=3*ILBE(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=NC*(NC-1)/2+MC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   62 CONTINUE
+      IPOINT=II*(II-1)/2+KK
+      BT(LINT,IPOINT)=SUM
+   61 CONTINUE
+
+      LINT=LINT+1
+      DO IM = 1,45
+       BTEN(IM) = ZERO
+      ENDDO
+C
+C  Rx mode; from MATHEMATICA
+C
+      BTEN(14) = 1.0d0/(RIJ*RJKT2)+1.0d0/RIJT3
+      BTEN(11) = 1.0d0/RIJT3
+      BTEN(26) = 1.0d0/(RIJ*RJKT2)
+      BTEN(15) = 1.0d0/(RIJ*RJKT2)+1.0d0/RIJT3
+      BTEN(12) = 1.0d0/RIJT3
+      BTEN(33) = 1.0d0/(RIJ*RJKT2)
+      BTEN(20) = -1.0d0 + 1.0d0/(RIJ*RJK)+(RIJ*RJK)+
+     >           1.0d0/(RIJ*RJKT2)-RIJT2+1.0d0/RIJT3
+      BTEN(13) = -1.0d0/(RIJ*RJK)+RIJT2+1.0d0/RIJT3
+      BTEN(41) = 1.0d0/(RIJ*RJK)-(RIJ*RJK)+1.0d0/(RIJ*RJKT2)
+      BTEN(17) = 1.0d0/RIJT2
+      BTEN(5)  = -1.0d0/RIJT2
+      BTEN(34) = -1.0d0/RJKT2
+      BTEN(44) = 1.0d0/RJKT2
+      CALL MATX(BTEMP,1,BTEN,-1,TBAR,1,9,9,9,9)
+      CALL MATX(BTEN,-1,TBAR,0,BTEMP,1,9,9,9,9)
+C
+      DO 71 II=1,NINT
+      DO 71 KK=1,II
+      SUM=ZERO
+      DO 72 MC=1,9
+      M=3*ILBE(INDEX(MC),IJK)-2+IBUMP(MC)
+      DO 73 NC=1,MC-1
+      N=3*ILBE(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=MC*(MC-1)/2+NC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   73 CONTINUE
+C
+      DO 72 NC=MC,9
+      N=3*ILBE(INDEX(NC),IJK)-2+IBUMP(NC)
+      IPOINT=NC*(NC-1)/2+MC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   72 CONTINUE
+      IPOINT=II*(II-1)/2+KK
+      BT(LINT,IPOINT)=SUM
+   71 CONTINUE
+   60 CONTINUE
+C
+C     TORSIONAL ANGLES
+C
+      DO 50 IJKL=1,NTO
+      LINT=LINT+1
+      I=ITO(1,IJKL)
+      J=ITO(2,IJKL)
+      K=ITO(3,IJKL)
+      L=ITO(4,IJKL)
+      CALL BANGLE1(I,J,K,X,Y,Z,NATOM,BANIJK)
+      CALL BANGLE1(J,K,L,X,Y,Z,NATOM,BANJKL)
+      CALL BTORSN(I,J,K,L,X,Y,Z,NATOM,BTIJKL)
+C
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RJK1=X(K)-X(J)
+      RJK2=Y(K)-Y(J)
+      RJK3=Z(K)-Z(J)
+      RKL1=X(L)-X(K)
+      RKL2=Y(L)-Y(K)
+      RKL3=Z(L)-Z(K)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      RKL=DIST(K,L,X,Y,Z,NATOM)
+      PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+      CIJK=COSE(PIJK)
+      SIJK=SINE(PIJK)
+      PJKL=ANGL(J,K,L,X,Y,Z,NATOM)
+      CJKL=COSE(PJKL)
+      SJKL=SINE(PJKL)
+      CIJKL=((-RIJ2*RJK1+RIJ1*RJK2)*(-RJK2*RKL1+RJK1*RKL2)+
+     > (RIJ3*RJK1-RIJ1*RJK3)*(RJK3*RKL1-RJK1*RKL3)+
+     > (-RIJ3*RJK2+RIJ2*RJK3)*(-RJK3*RKL2+RJK2*RKL3))/
+     > (SIJK*SJKL*RIJ*RJK*RJK*RKL)
+      SIJKL=((-RIJ3*RJK2+RIJ2*RJK3)*RKL1+(RIJ3*RJK1-RIJ1*RJK3)*RKL2+
+     > (-(RIJ2*RJK1)+RIJ1*RJK2)*RKL3)/(RIJ*RJK*RKL*SIJK*SJKL)
+C
+C     (I1,I1)->1
+C
+      BTEN(1)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ1**2/(CIJKL*SIJK**2*RIJ**4)+
+     >TWO*RIJ1*BTIJKL(1)/RIJ**2+SIJKL*BTIJKL(1)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(1)*BANIJK(1)/SIJK+
+     >SIJKL*BANIJK(1)**2/(CIJKL*SIJK**2)
+C
+C     (I1,I2)->2
+C
+      BTEN(2)=SIJKL*RIJ1*RIJ2/(CIJKL*SIJK**2*RIJ**4)+
+     >SIJKL*BTIJKL(1)*BTIJKL(2)/CIJKL+
+     >(RIJ2*BTIJKL(1)+RIJ1*BTIJKL(2))/RIJ**2+
+     >SIJKL*BANIJK(1)*BANIJK(2)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(2)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(2))/SIJK
+C
+C     (I1,I3)->4
+C
+      BTEN(4)=SIJKL*RIJ1*RIJ3/(CIJKL*SIJK**2*RIJ**4)+
+     >SIJKL*BTIJKL(3)*BTIJKL(1)/CIJKL+
+     >(RIJ1*BTIJKL(3)+RIJ3*BTIJKL(1))/RIJ**2+
+     >SIJKL*BANIJK(3)*BANIJK(1)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(1)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(1))/SIJK
+C
+C     (I1,J1)->7
+C
+      BTEN(7)=SIJKL/(CIJKL*SIJK**2*RIJ**2)-
+     >SIJKL*RIJ1**2/(CIJKL*SIJK**2*RIJ**4)-
+     >CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ1*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RJK1*BTIJKL(1)/RJK**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(4)/CIJKL+
+     >(-(RIJ1*BTIJKL(1))+RIJ1*BTIJKL(4))/RIJ**2+
+     >SIJKL*BANIJK(1)*BANIJK(4)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(4)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(4))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(1)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(1)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(1)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,J2)->11
+C
+      BTEN(11)=-(SIJKL*RIJ1*RIJ2/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ1*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RKL3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK2*BTIJKL(1)/RJK**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(5)/CIJKL+
+     >(-(RIJ2*BTIJKL(1))+RIJ1*BTIJKL(5))/RIJ**2+
+     >SIJKL*BANIJK(1)*BANIJK(5)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(5)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(5))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(2)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(2)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(2)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,J3)->16
+C
+      BTEN(16)=-(SIJKL*RIJ1*RIJ3/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ1*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >RKL2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK3*BTIJKL(1)/RJK**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(6)/CIJKL+
+     >(-(RIJ3*BTIJKL(1))+RIJ1*BTIJKL(6))/RIJ**2+
+     >SIJKL*BANIJK(1)*BANIJK(6)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(6)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(6))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(3)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(3)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(3)/(CIJKL*SIJK*SJKL)
+C
+C     (I1,K1)->22
+C
+      BTEN(22)=CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >SIJKL*RIJ1*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ1*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >RJK1*BTIJKL(1)/RJK**2+RKL1*BTIJKL(1)/RKL**2+
+     >RIJ1*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(7)/CIJKL+
+     >CIJK*SIJKL*RKL1*BANIJK(1)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(1)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(7))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(4)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(4)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(4)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,K2)->29
+C
+      BTEN(29)=SIJKL*RIJ1*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ1*RKL2/(CIJKL*RIJ**2*RKL**2)+
+     >(-RJK3-RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >RJK2*BTIJKL(1)/RJK**2+RKL2*BTIJKL(1)/RKL**2+
+     >RIJ1*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(8)/CIJKL+
+     >CIJK*SIJKL*RKL2*BANIJK(1)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(1)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(8))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(5)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(5)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(5)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,K3)->37
+C
+      BTEN(37)=SIJKL*RIJ1*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >(RJK2+RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ1*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >RJK3*BTIJKL(1)/RJK**2+RKL3*BTIJKL(1)/RKL**2+
+     >RIJ1*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(9)/CIJKL+
+     >CIJK*SIJKL*RKL3*BANIJK(1)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(1)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(1))-
+     >BTIJKL(1)*BANIJK(9))/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(6)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(6)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(6)/(CIJKL*SIJK*SJKL)
+C
+C     (I1,L1)->46
+C
+      BTEN(46)=SIJKL*RIJ1*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >RKL1*BTIJKL(1)/RKL**2+RIJ1*BTIJKL(10)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(1)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(1)/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(7)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,L2)->56
+C
+      BTEN(56)=RJK3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ1*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >RKL2*BTIJKL(1)/RKL**2+RIJ1*BTIJKL(11)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(1)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(1)/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(8)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I1,L3)->67
+C
+      BTEN(67)=-(RJK2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))+
+     >SIJKL*RIJ1*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >RKL3*BTIJKL(1)/RKL**2+RIJ1*BTIJKL(12)/RIJ**2+
+     >SIJKL*BTIJKL(1)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(1)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(1)/SIJK+
+     >CJKL*SIJKL*RIJ1*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(1)*BANJKL(9)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(1)*BANJKL(9)/(CIJKL*SIJK*SJKL)
+C
+C     (I2,I2)->3
+C
+      BTEN(3)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ2**2/(CIJKL*SIJK**2*RIJ**4)+
+     >TWO*RIJ2*BTIJKL(2)/RIJ**2+SIJKL*BTIJKL(2)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(2)*BANIJK(2)/SIJK+
+     >SIJKL*BANIJK(2)**2/(CIJKL*SIJK**2)
+C
+C     (I2,I3)->5
+C
+      BTEN(5)=SIJKL*RIJ2*RIJ3/(CIJKL*SIJK**2*RIJ**4)+
+     >SIJKL*BTIJKL(3)*BTIJKL(2)/CIJKL+
+     >(RIJ2*BTIJKL(3)+RIJ3*BTIJKL(2))/RIJ**2+
+     >SIJKL*BANIJK(3)*BANIJK(2)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(2)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(2))/SIJK
+C
+C     (I2,J1)->8
+C
+      BTEN(8)=-(SIJKL*RIJ1*RIJ2/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ2*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >RKL3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK1*BTIJKL(2)/RJK**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(4)/CIJKL+
+     >(-(RIJ1*BTIJKL(2))+RIJ2*BTIJKL(4))/RIJ**2+
+     >SIJKL*BANIJK(2)*BANIJK(4)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(4)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(4))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(1)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(1)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(1)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,J2)->12
+C
+      BTEN(12)=SIJKL/(CIJKL*SIJK**2*RIJ**2)-
+     >SIJKL*RIJ2**2/(CIJKL*SIJK**2*RIJ**4)-
+     >CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ2*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RJK2*BTIJKL(2)/RJK**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(5)/CIJKL+
+     >(-(RIJ2*BTIJKL(2))+RIJ2*BTIJKL(5))/RIJ**2+
+     >SIJKL*BANIJK(2)*BANIJK(5)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(5)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(5))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(2)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(2)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(2)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,J3)->17
+C
+      BTEN(17)=-(SIJKL*RIJ2*RIJ3/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ2*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RKL1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK3*BTIJKL(2)/RJK**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(6)/CIJKL+
+     >(-(RIJ3*BTIJKL(2))+RIJ2*BTIJKL(6))/RIJ**2+
+     >SIJKL*BANIJK(2)*BANIJK(6)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(6)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(6))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(3)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(3)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(3)/(CIJKL*SIJK*SJKL)
+C
+C     (I2,K1)->23
+C
+      BTEN(23)=SIJKL*RIJ2*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ2*RKL1/(CIJKL*RIJ**2*RKL**2)+
+     >(RJK3+RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >RJK1*BTIJKL(2)/RJK**2+RKL1*BTIJKL(2)/RKL**2+
+     >RIJ2*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(7)/CIJKL+
+     >CIJK*SIJKL*RKL1*BANIJK(2)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(2)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(7))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(4)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(4)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(4)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,K2)->30
+C
+      BTEN(30)=CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >SIJKL*RIJ2*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ2*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >RJK2*BTIJKL(2)/RJK**2+RKL2*BTIJKL(2)/RKL**2+
+     >RIJ2*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(8)/CIJKL+
+     >CIJK*SIJKL*RKL2*BANIJK(2)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(2)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(8))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(5)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(5)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(5)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,K3)->38
+C
+      BTEN(38)=SIJKL*RIJ2*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >(-RJK1-RKL1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ2*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >RJK3*BTIJKL(2)/RJK**2+RKL3*BTIJKL(2)/RKL**2+
+     >RIJ2*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(9)/CIJKL+
+     >CIJK*SIJKL*RKL3*BANIJK(2)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(2)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(2))-
+     >BTIJKL(2)*BANIJK(9))/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(6)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(6)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(6)/(CIJKL*SIJK*SJKL)
+C
+C     (I2,L1)->47
+C
+      BTEN(47)=-(RJK3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))+
+     >SIJKL*RIJ2*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >RKL1*BTIJKL(2)/RKL**2+RIJ2*BTIJKL(10)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(2)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(2)/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(7)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,L2)->57
+C
+      BTEN(57)=SIJKL*RIJ2*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >RKL2*BTIJKL(2)/RKL**2+RIJ2*BTIJKL(11)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(2)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(2)/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(8)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)
+C
+C     (I2,L3)->68
+C
+      BTEN(68)=RJK1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ2*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >RKL3*BTIJKL(2)/RKL**2+RIJ2*BTIJKL(12)/RIJ**2+
+     >SIJKL*BTIJKL(2)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(2)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(2)/SIJK+
+     >CJKL*SIJKL*RIJ2*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(2)*BANJKL(9)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(2)*BANJKL(9)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,I3)->6
+C
+      BTEN(6)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ3**2/(CIJKL*SIJK**2*RIJ**4)+TWO*RIJ3*BTIJKL(3)/RIJ**2+
+     >SIJKL*BTIJKL(3)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(3)*BANIJK(3)/SIJK+
+     >SIJKL*BANIJK(3)**2/(CIJKL*SIJK**2)
+C
+C     (I3,J1)->9
+C
+      BTEN(9)=-(SIJKL*RIJ1*RIJ3/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ3*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RKL2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK1*BTIJKL(3)/RJK**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(4)/CIJKL+
+     >(-(RIJ1*BTIJKL(3))+RIJ3*BTIJKL(4))/RIJ**2+
+     >SIJKL*BANIJK(3)*BANIJK(4)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(4)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(4))/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(1)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(1)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(1)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,J2)->13
+C
+      BTEN(13)=-(SIJKL*RIJ2*RIJ3/(CIJKL*SIJK**2*RIJ**4))-
+     >SIJKL*RIJ3*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >RKL1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+RJK2*BTIJKL(3)/RJK**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(5)/CIJKL+
+     >(-(RIJ2*BTIJKL(3))+RIJ3*BTIJKL(5))/RIJ**2+
+     >SIJKL*BANIJK(3)*BANIJK(5)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(5)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(5))/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(2)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(2)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(2)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,J3)->18
+C
+      BTEN(18)=SIJKL/(CIJKL*SIJK**2*RIJ**2)-
+     >SIJKL*RIJ3**2/(CIJKL*SIJK**2*RIJ**4)-
+     >CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ3*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >RJK3*BTIJKL(3)/RJK**2+SIJKL*BTIJKL(3)*BTIJKL(6)/CIJKL+
+     >(-(RIJ3*BTIJKL(3))+RIJ3*BTIJKL(6))/RIJ**2+
+     >SIJKL*BANIJK(3)*BANIJK(6)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(6)*BANIJK(3))-BTIJKL(3)*BANIJK(6))/
+     >SIJK+CJKL*SIJKL*RIJ3*BANJKL(3)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(3)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(3)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,K1)->24
+C
+      BTEN(24)=SIJKL*RIJ3*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ3*RKL1/(CIJKL*RIJ**2*RKL**2)+
+     >(-RJK2-RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >RJK1*BTIJKL(3)/RJK**2+RKL1*BTIJKL(3)/RKL**2+
+     >RIJ3*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(7)/CIJKL+
+     >CIJK*SIJKL*RKL1*BANIJK(3)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(3)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(7))/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(4)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(4)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(4)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,K2)->31
+C
+      BTEN(31)=SIJKL*RIJ3*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >(RJK1+RKL1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ3*RKL2/(CIJKL*RIJ**2*RKL**2)-RJK2*BTIJKL(3)/RJK**2+
+     >RKL2*BTIJKL(3)/RKL**2+RIJ3*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(8)/CIJKL+
+     >CIJK*SIJKL*RKL2*BANIJK(3)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(3)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(3))-
+     >BTIJKL(3)*BANIJK(8))/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(5)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(5)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(5)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,K3)->39
+C
+      BTEN(39)=CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >SIJKL*RIJ3*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RIJ3*RKL3/(CIJKL*RIJ**2*RKL**2)-RJK3*BTIJKL(3)/RJK**2+
+     >RKL3*BTIJKL(3)/RKL**2+RIJ3*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(9)/CIJKL+
+     >CIJK*SIJKL*RKL3*BANIJK(3)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(3)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(3))-BTIJKL(3)*BANIJK(9))/
+     >SIJK+CJKL*SIJKL*RIJ3*BANJKL(6)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(6)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(6)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,L1)->48
+C
+      BTEN(48)=RJK2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ3*RKL1/(CIJKL*RIJ**2*RKL**2)-RKL1*BTIJKL(3)/RKL**2+
+     >RIJ3*BTIJKL(10)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(3)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(3)/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(7)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(7)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,L2)->58
+C
+      BTEN(58)=-(RJK1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))+
+     >SIJKL*RIJ3*RKL2/(CIJKL*RIJ**2*RKL**2)-RKL2*BTIJKL(3)/RKL**2+
+     >RIJ3*BTIJKL(11)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(3)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(3)/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(8)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(8)/(CIJKL*SIJK*SJKL)
+C
+C     (I3,L3)->69
+C
+      BTEN(69)=SIJKL*RIJ3*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >RKL3*BTIJKL(3)/RKL**2+RIJ3*BTIJKL(12)/RIJ**2+
+     >SIJKL*BTIJKL(3)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(3)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(3)/SIJK+
+     >CJKL*SIJKL*RIJ3*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CJKL*BTIJKL(3)*BANJKL(9)/SJKL-
+     >CIJK*CJKL*SIJKL*BANIJK(3)*BANJKL(9)/(CIJKL*SIJK*SJKL)
+C
+C     (J1,J1)->10
+C
+      BTEN(10)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ1**2/(CIJKL*SIJK**2*RIJ**4)+SIJKL/(CIJKL*RJK**2)-
+     >SIJKL/(CIJKL*SIJK**2*RJK**2)-SIJKL/(CIJKL*SJKL**2*RJK**2)+
+     >TWO*CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >TWO*SIJKL*RIJ1*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RJK1**2/(CIJKL*RJK**4)+SIJKL*RJK1**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1**2/(CIJKL*SJKL**2*RJK**4)-
+     >TWO*RIJ1*BTIJKL(4)/RIJ**2+TWO*RJK1*BTIJKL(4)/RJK**2+
+     >SIJKL*BTIJKL(4)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(4)*BANIJK(4)/SIJK+
+     >SIJKL*BANIJK(4)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*SIJKL*RIJ1*BANJKL(1)/(CIJKL*SJKL*RIJ**2)-
+     >TWO*CJKL*BTIJKL(4)*BANJKL(1)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(4)*BANJKL(1)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(1)**2/(CIJKL*SJKL**2)
+C
+C     (J1,J2)->14
+C
+      BTEN(14)=SIJKL*RIJ1*RIJ2/(CIJKL*SIJK**2*RIJ**4)-
+     >SIJKL*RJK1*RJK2/(CIJKL*RJK**4)+
+     >SIJKL*RJK1*RJK2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1*RJK2/(CIJKL*SJKL**2*RJK**4)+
+     >(SIJKL*RIJ2*RJK1+SIJKL*RIJ1*RJK2)/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*BTIJKL(4)*BTIJKL(5)/CIJKL+
+     >(-(RIJ2*BTIJKL(4))-RIJ1*BTIJKL(5))/RIJ**2+
+     >(RJK2*BTIJKL(4)+RJK1*BTIJKL(5))/RJK**2+
+     >SIJKL*BANIJK(4)*BANIJK(5)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(5)*BANIJK(4))-
+     >BTIJKL(4)*BANIJK(5))/SIJK+
+     >SIJKL*BANJKL(1)*BANJKL(2)/(CIJKL*SJKL**2)+
+     >CJKL*(-(SIJKL*RIJ2*BANJKL(1))-
+     >SIJKL*RIJ1*BANJKL(2))/(CIJKL*SJKL*RIJ**2)+
+     >CJKL*(-(BTIJKL(5)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(2))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(5)*BANJKL(1))-
+     >SIJKL*BANIJK(4)*BANJKL(2))/(CIJKL*SIJK*SJKL)
+C
+C     (J1,J3)->19
+C
+      BTEN(19)=SIJKL*RIJ1*RIJ3/(CIJKL*SIJK**2*RIJ**4)-
+     >SIJKL*RJK1*RJK3/(CIJKL*RJK**4)+
+     >SIJKL*RJK1*RJK3/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >(SIJKL*RIJ3*RJK1+SIJKL*RIJ1*RJK3)/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*BTIJKL(6)*BTIJKL(4)/CIJKL+
+     >(-(RIJ1*BTIJKL(6))-RIJ3*BTIJKL(4))/RIJ**2+
+     >(RJK1*BTIJKL(6)+RJK3*BTIJKL(4))/RJK**2+
+     >SIJKL*BANIJK(6)*BANIJK(4)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(4)*BANIJK(6))-
+     >BTIJKL(6)*BANIJK(4))/SIJK+
+     >SIJKL*BANJKL(3)*BANJKL(1)/(CIJKL*SJKL**2)+
+     >CJKL*(-(SIJKL*RIJ1*BANJKL(3))-SIJKL*RIJ3*BANJKL(1))/
+     >(CIJKL*SJKL*RIJ**2)+CJKL*
+     >(-(BTIJKL(4)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(1))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(4)*BANJKL(3))-
+     >SIJKL*BANIJK(6)*BANJKL(1))/(CIJKL*SIJK*SJKL)
+C
+C     (J1,K1)->25
+C
+      BTEN(25)=-(SIJKL/(CIJKL*RJK**2))+SIJKL/(CIJKL*SIJK**2*RJK**2)+
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ1*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*RJK1**2/(CIJKL*RJK**4)-SIJKL*RJK1**2/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK1**2/(CIJKL*SJKL**2*RJK**4)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >SIJKL*RIJ1*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK1*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL1*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(7)/CIJKL+
+     >(-(RJK1*BTIJKL(4))+RJK1*BTIJKL(7))/RJK**2+
+     >CIJK*SIJKL*RKL1*BANIJK(4)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(4)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(4))-
+     >BTIJKL(4)*BANIJK(7))/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(4)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(1)*BANJKL(4)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(7)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(4))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(7)*BANJKL(1))-
+     >SIJKL*BANIJK(4)*BANJKL(4))/(CIJKL*SIJK*SJKL)
+C
+C     (J1,K2)->32
+C
+      BTEN(32)=-(SIJKL*RIJ1*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK1*RJK2/(CIJKL*RJK**4)-
+     >SIJKL*RJK1*RJK2/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK1*RJK2/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RIJ1*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK1*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >(RIJ3+RJK3+RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >RKL2*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(8)/CIJKL+
+     >(-(RJK2*BTIJKL(4))+RJK1*BTIJKL(8))/RJK**2+
+     >CIJK*SIJKL*RKL2*BANIJK(4)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(4)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(4))-
+     >BTIJKL(4)*BANIJK(8))/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(5)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(1)*BANJKL(5)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(8)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(5))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(8)*BANJKL(1))-
+     >SIJKL*BANIJK(4)*BANJKL(5))/(CIJKL*SIJK*SJKL)
+C
+C     (J1,K3)->40
+C
+      BTEN(40)=-(SIJKL*RIJ1*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK1*RJK3/(CIJKL*RJK**4)-
+     >SIJKL*RJK1*RJK3/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK1*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >(-RIJ2-RJK2-RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ1*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK1*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL3*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(9)/CIJKL+
+     >(-(RJK3*BTIJKL(4))+RJK1*BTIJKL(9))/RJK**2+
+     >CIJK*SIJKL*RKL3*BANIJK(4)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(4)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(4))-
+     >BTIJKL(4)*BANIJK(9))/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(6)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(1)*BANJKL(6)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(9)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(6))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(9)*BANJKL(1))-
+     >SIJKL*BANIJK(4)*BANJKL(6))/(CIJKL*SIJK*SJKL)
+C
+C     (J1,L1)->49
+C
+      BTEN(49)=CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RIJ1*RKL1/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK1*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL1*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(10)/RIJ**2+
+     >RJK1*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(4)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(4)/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(4)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(1)*BANJKL(7)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(10)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(7))/SJKL
+C
+C     (J1,L2)->59
+C
+      BTEN(59)=(-RIJ3-RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ1*RKL2/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK1*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL2*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(11)/RIJ**2+
+     >RJK1*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(4)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(4)/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(4)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(1)*BANJKL(8)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(11)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(8))/SJKL
+C
+C     (J1,L3)->70
+C
+      BTEN(70)=(RIJ2+RJK2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ1*RKL3/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK1*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL3*BTIJKL(4)/RKL**2-RIJ1*BTIJKL(12)/RIJ**2+
+     >RJK1*BTIJKL(12)/RJK**2+
+     >SIJKL*BTIJKL(4)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(4)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(4)/SIJK-
+     >CJKL*SIJKL*RIJ1*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(4)*
+     >BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(1)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(1))-
+     >BTIJKL(4)*BANJKL(9))/SJKL
+C
+C     (J2,J2)->15
+C
+      BTEN(15)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ2**2/(CIJKL*SIJK**2*RIJ**4)+SIJKL/(CIJKL*RJK**2)-
+     >SIJKL/(CIJKL*SIJK**2*RJK**2)-SIJKL/(CIJKL*SJKL**2*RJK**2)+
+     >TWO*CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >TWO*SIJKL*RIJ2*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RJK2**2/(CIJKL*RJK**4)+SIJKL*RJK2**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK2**2/(CIJKL*SJKL**2*RJK**4)-
+     >TWO*RIJ2*BTIJKL(5)/RIJ**2+TWO*RJK2*BTIJKL(5)/RJK**2+
+     >SIJKL*BTIJKL(5)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(5)*BANIJK(5)/SIJK+
+     >SIJKL*BANIJK(5)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*SIJKL*RIJ2*BANJKL(2)/(CIJKL*SJKL*RIJ**2)-
+     >TWO*CJKL*BTIJKL(5)*BANJKL(2)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(5)*BANJKL(2)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(2)**2/(CIJKL*SJKL**2)
+C
+C     (J2,J3)->20
+C
+      BTEN(20)=SIJKL*RIJ2*RIJ3/(CIJKL*SIJK**2*RIJ**4)-
+     >SIJKL*RJK2*RJK3/(CIJKL*RJK**4)+
+     >SIJKL*RJK2*RJK3/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK2*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >(SIJKL*RIJ3*RJK2+SIJKL*RIJ2*RJK3)/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*BTIJKL(6)*BTIJKL(5)/CIJKL+
+     >(-(RIJ2*BTIJKL(6))-RIJ3*BTIJKL(5))/RIJ**2+
+     >(RJK2*BTIJKL(6)+RJK3*BTIJKL(5))/RJK**2+
+     >SIJKL*BANIJK(6)*BANIJK(5)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(5)*BANIJK(6))-
+     >BTIJKL(6)*BANIJK(5))/SIJK+
+     >SIJKL*BANJKL(3)*BANJKL(2)/(CIJKL*SJKL**2)+
+     >CJKL*(-(SIJKL*RIJ2*BANJKL(3))-SIJKL*RIJ3*BANJKL(2))/
+     >(CIJKL*SJKL*RIJ**2)+CJKL*
+     >(-(BTIJKL(5)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(2))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(5)*BANJKL(3))-
+     >SIJKL*BANIJK(6)*BANJKL(2))/(CIJKL*SIJK*SJKL)
+C
+C     (J2,K1)->26
+C
+      BTEN(26)=-(SIJKL*RIJ2*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK1*RJK2/(CIJKL*RJK**4)-
+     >SIJKL*RJK1*RJK2/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK1*RJK2/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RIJ2*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK2*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >(-RIJ3-RJK3-RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >RKL1*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(7)/CIJKL+
+     >(-(RJK1*BTIJKL(5))+RJK2*BTIJKL(7))/RJK**2+
+     >CIJK*SIJKL*RKL1*BANIJK(5)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(5)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(5))-
+     >BTIJKL(5)*BANIJK(7))/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(4)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(2)*BANJKL(4)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(7)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(4))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(7)*BANJKL(2))-
+     >SIJKL*BANIJK(5)*BANJKL(4))/(CIJKL*SIJK*SJKL)
+C
+C     (J2,K2)->33
+C
+      BTEN(33)=-(SIJKL/(CIJKL*RJK**2))+SIJKL/(CIJKL*SIJK**2*RJK**2)+
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ2*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*RJK2**2/(CIJKL*RJK**4)-SIJKL*RJK2**2/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK2**2/(CIJKL*SJKL**2*RJK**4)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >SIJKL*RIJ2*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK2*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL2*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(8)/CIJKL+
+     >(-(RJK2*BTIJKL(5))+RJK2*BTIJKL(8))/RJK**2+
+     >CIJK*SIJKL*RKL2*BANIJK(5)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(5)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(5))-
+     >BTIJKL(5)*BANIJK(8))/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(5)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(2)*BANJKL(5)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(8)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(5))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(8)*BANJKL(2))-
+     >SIJKL*BANIJK(5)*BANJKL(5))/(CIJKL*SIJK*SJKL)
+C
+C     (J2,K3)->41
+C
+      BTEN(41)=-(SIJKL*RIJ2*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK2*RJK3/(CIJKL*RJK**4)-
+     >SIJKL*RJK2*RJK3/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK2*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >(RIJ1+RJK1+RKL1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ2*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK2*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL3*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(9)/CIJKL+
+     >(-(RJK3*BTIJKL(5))+RJK2*BTIJKL(9))/RJK**2+
+     >CIJK*SIJKL*RKL3*BANIJK(5)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(5)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(5))-
+     >BTIJKL(5)*BANIJK(9))/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(6)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(2)*BANJKL(6)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(9)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(6))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(9)*BANJKL(2))-
+     >SIJKL*BANIJK(5)*BANJKL(6))/(CIJKL*SIJK*SJKL)
+C
+C     (J2,L1)->50
+C
+      BTEN(50)=(RIJ3+RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ2*RKL1/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK2*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL1*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(10)/RIJ**2+
+     >RJK2*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(5)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(5)/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(5)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(2)*BANJKL(7)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(10)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(7))/SJKL
+C
+C     (J2,L2)->60
+C
+      BTEN(60)=CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RIJ2*RKL2/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK2*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL2*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(11)/RIJ**2+
+     >RJK2*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(5)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(5)/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(5)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(2)*BANJKL(8)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(11)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(8))/SJKL
+C
+C     (J2,L3)->71
+C
+      BTEN(71)=(-RIJ1-RJK1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ2*RKL3/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK2*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL3*BTIJKL(5)/RKL**2-RIJ2*BTIJKL(12)/RIJ**2+
+     >RJK2*BTIJKL(12)/RJK**2+
+     >SIJKL*BTIJKL(5)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(5)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(5)/SIJK-
+     >CJKL*SIJKL*RIJ2*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(5)*
+     >BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(2)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(2))-
+     >BTIJKL(5)*BANJKL(9))/SJKL
+C
+C     (J3,J3)->21
+C
+      BTEN(21)=-(SIJKL/(CIJKL*SIJK**2*RIJ**2))+
+     >SIJKL*RIJ3**2/(CIJKL*SIJK**2*RIJ**4)+SIJKL/(CIJKL*RJK**2)-
+     >SIJKL/(CIJKL*SIJK**2*RJK**2)-SIJKL/(CIJKL*SJKL**2*RJK**2)+
+     >TWO*CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)+
+     >TWO*SIJKL*RIJ3*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)-
+     >SIJKL*RJK3**2/(CIJKL*RJK**4)+SIJKL*RJK3**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK3**2/(CIJKL*SJKL**2*RJK**4)-TWO*RIJ3*BTIJKL(6)/RIJ**2+
+     >TWO*RJK3*BTIJKL(6)/RJK**2+SIJKL*BTIJKL(6)**2/CIJKL-
+     >TWO*CIJK*BTIJKL(6)*BANIJK(6)/SIJK+
+     >SIJKL*BANIJK(6)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*SIJKL*RIJ3*BANJKL(3)/(CIJKL*SJKL*RIJ**2)-
+     >TWO*CJKL*BTIJKL(6)*BANJKL(3)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(6)*
+     >BANJKL(3)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(3)**2/(CIJKL*SJKL**2)
+C
+C     (J3,K1)->27
+C
+      BTEN(27)=-(SIJKL*RIJ3*RJK1/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK1*RJK3/(CIJKL*RJK**4)-
+     >SIJKL*RJK1*RJK3/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK1*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RIJ3*RKL1/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK3*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >(RIJ2+RJK2+RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >RKL1*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(7)/RIJ**2+
+     >SIJKL*BTIJKL(6)*BTIJKL(7)/CIJKL+
+     >(-(RJK1*BTIJKL(6))+RJK3*BTIJKL(7))/RJK**2+
+     >CIJK*SIJKL*RKL1*BANIJK(6)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(6)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(7)*BANIJK(6))-
+     >BTIJKL(6)*BANIJK(7))/SIJK-
+     >CJKL*SIJKL*RIJ3*BANJKL(4)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(3)*BANJKL(4)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(7)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(4))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(7)*BANJKL(3))-
+     >SIJKL*BANIJK(6)*BANJKL(4))/(CIJKL*SIJK*SJKL)
+C
+C     (J3,K2)->34
+C
+      BTEN(34)=-(SIJKL*RIJ3*RJK2/(CIJKL*SIJK**2*RIJ**2*RJK**2))+
+     >SIJKL*RJK2*RJK3/(CIJKL*RJK**4)-
+     >SIJKL*RJK2*RJK3/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK2*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >(-RIJ1-RJK1-RKL1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+
+     >SIJKL*RIJ3*RKL2/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK3*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL2*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(8)/RIJ**2+
+     >SIJKL*BTIJKL(6)*BTIJKL(8)/CIJKL+
+     >(-(RJK2*BTIJKL(6))+RJK3*BTIJKL(8))/RJK**2+
+     >CIJK*SIJKL*RKL2*BANIJK(6)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(6)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(8)*BANIJK(6))-
+     >BTIJKL(6)*BANIJK(8))/SIJK-
+     >CJKL*SIJKL*RIJ3*BANJKL(5)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(3)*BANJKL(5)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(8)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(5))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(8)*BANJKL(3))-
+     >SIJKL*BANIJK(6)*BANJKL(5))/(CIJKL*SIJK*SJKL)
+C
+C     (J3,K3)->42
+C
+      BTEN(42)=-(SIJKL/(CIJKL*RJK**2))+SIJKL/(CIJKL*SIJK**2*RJK**2)+
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-CIJK*SIJKL/(CIJKL*SIJK**2*RIJ*RJK)-
+     >SIJKL*RIJ3*RJK3/(CIJKL*SIJK**2*RIJ**2*RJK**2)+
+     >SIJKL*RJK3**2/(CIJKL*RJK**4)-SIJKL*RJK3**2/(CIJKL*SIJK**2*RJK**4)-
+     >SIJKL*RJK3**2/(CIJKL*SJKL**2*RJK**4)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >SIJKL*RIJ3*RKL3/(CIJKL*RIJ**2*RKL**2)-
+     >SIJKL*RJK3*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >RKL3*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(9)/RIJ**2+
+     >SIJKL*BTIJKL(6)*BTIJKL(9)/CIJKL+
+     >(-(RJK3*BTIJKL(6))+RJK3*BTIJKL(9))/RJK**2+
+     >CIJK*SIJKL*RKL3*BANIJK(6)/(CIJKL*SIJK*RKL**2)+
+     >SIJKL*BANIJK(6)*BANIJK(9)/(CIJKL*SIJK**2)+
+     >CIJK*(-(BTIJKL(9)*BANIJK(6))-BTIJKL(6)*BANIJK(9))/
+     >SIJK-CJKL*SIJKL*RIJ3*BANJKL(6)/(CIJKL*SJKL*RIJ**2)+
+     >SIJKL*BANJKL(3)*BANJKL(6)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(9)*BANJKL(3))-BTIJKL(6)*BANJKL(6))/
+     >SJKL+CIJK*CJKL*(-(SIJKL*BANIJK(9)*BANJKL(3))-
+     >SIJKL*BANIJK(6)*BANJKL(6))/(CIJKL*SIJK*SJKL)
+C
+C     (J3,L1)->51
+C
+      BTEN(51)=(-RIJ2-RJK2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ3*RKL1/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK3*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL1*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(10)/RIJ**2+
+     >RJK3*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(6)*BTIJKL(10)/CIJKL-
+     >CIJK*SIJKL*RKL1*BANIJK(6)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(6)/SIJK-
+     >CJKL*SIJKL*RIJ3*BANJKL(7)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(6)*
+     >BANJKL(7)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(3)*BANJKL(7)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(10)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(7))/SJKL
+C
+C     (J3,L2)->61
+C
+      BTEN(61)=(RIJ1+RJK1)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RIJ3*RKL2/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK3*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL2*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(11)/RIJ**2+
+     >RJK3*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(6)*BTIJKL(11)/CIJKL-
+     >CIJK*SIJKL*RKL2*BANIJK(6)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(6)/SIJK-
+     >CJKL*SIJKL*RIJ3*BANJKL(8)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(6)*
+     >BANJKL(8)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(3)*BANJKL(8)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(11)*BANJKL(3))-
+     >BTIJKL(6)*BANJKL(8))/SJKL
+C
+C     (J3,L3)->72
+C
+      BTEN(72)=CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RIJ3*RKL3/(CIJKL*RIJ**2*RKL**2)+
+     >SIJKL*RJK3*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >RKL3*BTIJKL(6)/RKL**2-RIJ3*BTIJKL(12)/RIJ**2+
+     >RJK3*BTIJKL(12)/RJK**2+SIJKL*BTIJKL(6)*BTIJKL(12)/CIJKL-
+     >CIJK*SIJKL*RKL3*BANIJK(6)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(6)/SIJK-
+     >CJKL*SIJKL*RIJ3*BANJKL(9)/(CIJKL*SJKL*RIJ**2)-
+     >CIJK*CJKL*SIJKL*BANIJK(6)*BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(3)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(3))-BTIJKL(6)*BANJKL(9))/
+     >SJKL
+C
+C     (K1,K1)->28
+C
+      BTEN(28)=SIJKL/(CIJKL*RJK**2)-SIJKL/(CIJKL*SIJK**2*RJK**2)-
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-SIJKL*RJK1**2/(CIJKL*RJK**4)+
+     >SIJKL*RJK1**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1**2/(CIJKL*SJKL**2*RJK**4)-SIJKL/(CIJKL*SJKL**2*RKL**2)+
+     >TWO*CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >TWO*SIJKL*RJK1*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*RKL1**2/(CIJKL*SJKL**2*RKL**4)-
+     >TWO*RJK1*BTIJKL(7)/RJK**2+TWO*RKL1*BTIJKL(7)/RKL**2+
+     >SIJKL*BTIJKL(7)**2/CIJKL+
+     >TWO*CIJK*SIJKL*RKL1*BANIJK(7)/(CIJKL*SIJK*RKL**2)-
+     >TWO*CIJK*BTIJKL(7)*BANIJK(7)/SIJK+
+     >SIJKL*BANIJK(7)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*BTIJKL(7)*BANJKL(4)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(7)*BANJKL(4)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(4)**2/(CIJKL*SJKL**2)
+C
+C     (K1,K2)->35
+C
+      BTEN(35)=-(SIJKL*RJK1*RJK2/(CIJKL*RJK**4))+
+     >SIJKL*RJK1*RJK2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1*RJK2/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RKL1*RKL2/(CIJKL*SJKL**2*RKL**4)+
+     >(SIJKL*RJK2*RKL1+SIJKL*RJK1*RKL2)/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*BTIJKL(7)*BTIJKL(8)/CIJKL+
+     >(-(RJK2*BTIJKL(7))-RJK1*BTIJKL(8))/RJK**2+
+     >(RKL2*BTIJKL(7)+RKL1*BTIJKL(8))/RKL**2+
+     >SIJKL*BANIJK(7)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(SIJKL*RKL2*BANIJK(7)+SIJKL*RKL1*BANIJK(8))/
+     >(CIJKL*SIJK*RKL**2)+CIJK*
+     >(-(BTIJKL(8)*BANIJK(7))-
+     >BTIJKL(7)*BANIJK(8))/SIJK+
+     >SIJKL*BANJKL(4)*BANJKL(5)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(8)*BANJKL(4))-
+     >BTIJKL(7)*BANJKL(5))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(8)*BANJKL(4))-
+     >SIJKL*BANIJK(7)*BANJKL(5))/(CIJKL*SIJK*SJKL)
+C
+C     (K1,K3)->43
+C
+      BTEN(43)=-(SIJKL*RJK1*RJK3/(CIJKL*RJK**4))+
+     >SIJKL*RJK1*RJK3/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK1*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RKL1*RKL3/(CIJKL*SJKL**2*RKL**4)+
+     >(SIJKL*RJK3*RKL1+SIJKL*RJK1*RKL3)/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*BTIJKL(9)*BTIJKL(7)/CIJKL+
+     >(-(RJK1*BTIJKL(9))-RJK3*BTIJKL(7))/RJK**2+
+     >(RKL1*BTIJKL(9)+RKL3*BTIJKL(7))/RKL**2+
+     >SIJKL*BANIJK(9)*BANIJK(7)/(CIJKL*SIJK**2)+
+     >CIJK*(SIJKL*RKL1*BANIJK(9)+SIJKL*RKL3*BANIJK(7))/
+     >(CIJKL*SIJK*RKL**2)+CIJK*
+     >(-(BTIJKL(7)*BANIJK(9))-
+     >BTIJKL(9)*BANIJK(7))/SIJK+
+     >SIJKL*BANJKL(6)*BANJKL(4)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(7)*BANJKL(6))-
+     >BTIJKL(9)*BANJKL(4))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(7)*BANJKL(6))-
+     >SIJKL*BANIJK(9)*BANJKL(4))/(CIJKL*SIJK*SJKL)
+C
+C     (K1,L1)->52
+C
+      BTEN(52)=SIJKL/(CIJKL*SJKL**2*RKL**2)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RJK1*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL1**2/(CIJKL*SJKL**2*RKL**4)-RJK1*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(7)*BTIJKL(10)/CIJKL+
+     >(-(RKL1*BTIJKL(7))+RKL1*BTIJKL(10))/RKL**2-
+     >CIJK*SIJKL*RKL1*BANIJK(7)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(7)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(7)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(4)*BANJKL(7)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(10)*BANJKL(4))-
+     >BTIJKL(7)*BANJKL(7))/SJKL
+C
+C     (K1,L2)->62
+C
+      BTEN(62)=RIJ3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RJK1*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL1*RKL2/(CIJKL*SJKL**2*RKL**4)-
+     >RJK1*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(7)*BTIJKL(11)/CIJKL+
+     >(-(RKL2*BTIJKL(7))+RKL1*BTIJKL(11))/RKL**2-
+     >CIJK*SIJKL*RKL2*BANIJK(7)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(7)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(7)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(4)*BANJKL(8)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(11)*BANJKL(4))-
+     >BTIJKL(7)*BANJKL(8))/SJKL
+C
+C     (K1,L3)->73
+C
+      BTEN(73)=-(RIJ2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))-
+     >SIJKL*RJK1*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL1*RKL3/(CIJKL*SJKL**2*RKL**4)-RJK1*BTIJKL(12)/RJK**2+
+     >SIJKL*BTIJKL(7)*BTIJKL(12)/CIJKL+
+     >(-(RKL3*BTIJKL(7))+RKL1*BTIJKL(12))/RKL**2-
+     >CIJK*SIJKL*RKL3*BANIJK(7)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(7)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(7)*
+     >BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(4)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(4))-
+     >BTIJKL(7)*BANJKL(9))/SJKL
+C
+C     (K2,K2)->36
+C
+      BTEN(36)=SIJKL/(CIJKL*RJK**2)-SIJKL/(CIJKL*SIJK**2*RJK**2)-
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-SIJKL*RJK2**2/(CIJKL*RJK**4)+
+     >SIJKL*RJK2**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK2**2/(CIJKL*SJKL**2*RJK**4)-SIJKL/(CIJKL*SJKL**2*RKL**2)+
+     >TWO*CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >TWO*SIJKL*RJK2*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*RKL2**2/(CIJKL*SJKL**2*RKL**4)-
+     >TWO*RJK2*BTIJKL(8)/RJK**2+TWO*RKL2*BTIJKL(8)/RKL**2+
+     >SIJKL*BTIJKL(8)**2/CIJKL+
+     >TWO*CIJK*SIJKL*RKL2*BANIJK(8)/(CIJKL*SIJK*RKL**2)-
+     >TWO*CIJK*BTIJKL(8)*BANIJK(8)/SIJK+
+     >SIJKL*BANIJK(8)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*BTIJKL(8)*BANJKL(5)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(8)*BANJKL(5)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(5)**2/(CIJKL*SJKL**2)
+C
+C     (K2,K3)->44
+C
+      BTEN(44)=-(SIJKL*RJK2*RJK3/(CIJKL*RJK**4))+
+     >SIJKL*RJK2*RJK3/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK2*RJK3/(CIJKL*SJKL**2*RJK**4)+
+     >SIJKL*RKL2*RKL3/(CIJKL*SJKL**2*RKL**4)+
+     >(SIJKL*RJK3*RKL2+SIJKL*RJK2*RKL3)/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*BTIJKL(9)*BTIJKL(8)/CIJKL+
+     >(-(RJK2*BTIJKL(9))-RJK3*BTIJKL(8))/RJK**2+
+     >(RKL2*BTIJKL(9)+RKL3*BTIJKL(8))/RKL**2+
+     >SIJKL*BANIJK(9)*BANIJK(8)/(CIJKL*SIJK**2)+
+     >CIJK*(SIJKL*RKL2*BANIJK(9)+SIJKL*RKL3*BANIJK(8))/
+     >(CIJKL*SIJK*RKL**2)+CIJK*
+     >(-(BTIJKL(8)*BANIJK(9))-
+     >BTIJKL(9)*BANIJK(8))/SIJK+
+     >SIJKL*BANJKL(6)*BANJKL(5)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(8)*BANJKL(6))-
+     >BTIJKL(9)*BANJKL(5))/SJKL+
+     >CIJK*CJKL*(-(SIJKL*BANIJK(8)*BANJKL(6))-
+     >SIJKL*BANIJK(9)*BANJKL(5))/(CIJKL*SIJK*SJKL)
+C
+C     (K2,L1)->53
+C
+      BTEN(53)=-(RIJ3/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))-
+     >SIJKL*RJK2*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL1*RKL2/(CIJKL*SJKL**2*RKL**4)-
+     >RJK2*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(8)*BTIJKL(10)/CIJKL+
+     >(-(RKL1*BTIJKL(8))+RKL2*BTIJKL(10))/RKL**2-
+     >CIJK*SIJKL*RKL1*BANIJK(8)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(8)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(8)*BANJKL(7)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(5)*BANJKL(7)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(10)*BANJKL(5))-
+     >BTIJKL(8)*BANJKL(7))/SJKL
+C
+C     (K2,L2)->63
+C
+      BTEN(63)=SIJKL/(CIJKL*SJKL**2*RKL**2)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RJK2*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL2**2/(CIJKL*SJKL**2*RKL**4)-RJK2*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(8)*BTIJKL(11)/CIJKL+
+     >(-(RKL2*BTIJKL(8))+RKL2*BTIJKL(11))/RKL**2-
+     >CIJK*SIJKL*RKL2*BANIJK(8)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(8)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(8)*BANJKL(8)/
+     >(CIJKL*SIJK*SJKL)+SIJKL*BANJKL(5)*BANJKL(8)/
+     >(CIJKL*SJKL**2)+CJKL*(-(BTIJKL(11)*BANJKL(5))-
+     >BTIJKL(8)*BANJKL(8))/SJKL
+C
+C     (K2,L3)->74
+C
+      BTEN(74)=RIJ1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RJK2*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL2*RKL3/(CIJKL*SJKL**2*RKL**4)-RJK2*BTIJKL(12)/RJK**2+
+     >SIJKL*BTIJKL(8)*BTIJKL(12)/CIJKL+
+     >(-(RKL3*BTIJKL(8))+RKL2*BTIJKL(12))/RKL**2-
+     >CIJK*SIJKL*RKL3*BANIJK(8)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(8)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(8)*
+     >BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(5)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(5))-
+     >BTIJKL(8)*BANJKL(9))/SJKL
+C
+C     (K3,K3)->45
+C
+      BTEN(45)=SIJKL/(CIJKL*RJK**2)-SIJKL/(CIJKL*SIJK**2*RJK**2)-
+     >SIJKL/(CIJKL*SJKL**2*RJK**2)-SIJKL*RJK3**2/(CIJKL*RJK**4)+
+     >SIJKL*RJK3**2/(CIJKL*SIJK**2*RJK**4)+
+     >SIJKL*RJK3**2/(CIJKL*SJKL**2*RJK**4)-SIJKL/(CIJKL*SJKL**2*RKL**2)+
+     >TWO*CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)+
+     >TWO*SIJKL*RJK3*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)+
+     >SIJKL*RKL3**2/(CIJKL*SJKL**2*RKL**4)-TWO*RJK3*BTIJKL(9)/RJK**2+
+     >TWO*RKL3*BTIJKL(9)/RKL**2+SIJKL*BTIJKL(9)**2/CIJKL+
+     >TWO*CIJK*SIJKL*RKL3*BANIJK(9)/(CIJKL*SIJK*RKL**2)-
+     >TWO*CIJK*BTIJKL(9)*BANIJK(9)/SIJK+
+     >SIJKL*BANIJK(9)**2/(CIJKL*SIJK**2)-
+     >TWO*CJKL*BTIJKL(9)*BANJKL(6)/SJKL-
+     >TWO*CIJK*CJKL*SIJKL*BANIJK(9)*
+     >BANJKL(6)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(6)**2/(CIJKL*SJKL**2)
+C
+C     (K3,L1)->54
+C
+      BTEN(54)=RIJ2/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-
+     >SIJKL*RJK3*RKL1/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL1*RKL3/(CIJKL*SJKL**2*RKL**4)-
+     >RJK3*BTIJKL(10)/RJK**2+
+     >SIJKL*BTIJKL(9)*BTIJKL(10)/CIJKL+
+     >(-(RKL1*BTIJKL(9))+RKL3*BTIJKL(10))/RKL**2-
+     >CIJK*SIJKL*RKL1*BANIJK(9)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(10)*BANIJK(9)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(9)*
+     >BANJKL(7)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(6)*BANJKL(7)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(10)*BANJKL(6))-
+     >BTIJKL(9)*BANJKL(7))/SJKL
+C
+C     (K3,L2)->64
+C
+      BTEN(64)=-(RIJ1/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL))-
+     >SIJKL*RJK3*RKL2/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL2*RKL3/(CIJKL*SJKL**2*RKL**4)-
+     >RJK3*BTIJKL(11)/RJK**2+
+     >SIJKL*BTIJKL(9)*BTIJKL(11)/CIJKL+
+     >(-(RKL2*BTIJKL(9))+RKL3*BTIJKL(11))/RKL**2-
+     >CIJK*SIJKL*RKL2*BANIJK(9)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(11)*BANIJK(9)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(9)*
+     >BANJKL(8)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(6)*BANJKL(8)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(11)*BANJKL(6))-
+     >BTIJKL(9)*BANJKL(8))/SJKL
+C
+C     (K3,L3)->75
+C
+      BTEN(75)=SIJKL/(CIJKL*SJKL**2*RKL**2)-
+     >CJKL*SIJKL/(CIJKL*SJKL**2*RJK*RKL)-
+     >SIJKL*RJK3*RKL3/(CIJKL*SJKL**2*RJK**2*RKL**2)-
+     >SIJKL*RKL3**2/(CIJKL*SJKL**2*RKL**4)-RJK3*BTIJKL(12)/RJK**2+
+     >SIJKL*BTIJKL(9)*BTIJKL(12)/CIJKL+
+     >(-(RKL3*BTIJKL(9))+RKL3*BTIJKL(12))/RKL**2-
+     >CIJK*SIJKL*RKL3*BANIJK(9)/(CIJKL*SIJK*RKL**2)-
+     >CIJK*BTIJKL(12)*BANIJK(9)/SIJK-
+     >CIJK*CJKL*SIJKL*BANIJK(9)*BANJKL(9)/(CIJKL*SIJK*SJKL)+
+     >SIJKL*BANJKL(6)*BANJKL(9)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(12)*BANJKL(6))-BTIJKL(9)*BANJKL(9))/
+     >SJKL
+C
+C     (L1,L1)->55
+C
+      BTEN(55)=-(SIJKL/(CIJKL*SJKL**2*RKL**2))+
+     >SIJKL*RKL1**2/(CIJKL*SJKL**2*RKL**4)-
+     >TWO*RKL1*BTIJKL(10)/RKL**2+SIJKL*BTIJKL(10)**2/CIJKL-
+     >TWO*CJKL*BTIJKL(10)*BANJKL(7)/SJKL+
+     >SIJKL*BANJKL(7)**2/(CIJKL*SJKL**2)
+C
+C     (L1,L2)->65
+C
+      BTEN(65)=SIJKL*RKL1*RKL2/(CIJKL*SJKL**2*RKL**4)+
+     >SIJKL*BTIJKL(10)*BTIJKL(11)/CIJKL+
+     >(-(RKL2*BTIJKL(10))-RKL1*BTIJKL(11))/RKL**2+
+     >SIJKL*BANJKL(7)*BANJKL(8)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(11)*BANJKL(7))-
+     >BTIJKL(10)*BANJKL(8))/SJKL
+C
+C     (L1,L3)->76
+C
+      BTEN(76)=SIJKL*RKL1*RKL3/(CIJKL*SJKL**2*RKL**4)+
+     >SIJKL*BTIJKL(12)*BTIJKL(10)/CIJKL+
+     >(-(RKL1*BTIJKL(12))-RKL3*BTIJKL(10))/RKL**2+
+     >SIJKL*BANJKL(9)*BANJKL(7)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(10)*BANJKL(9))-
+     >BTIJKL(12)*BANJKL(7))/SJKL
+C
+C     (L2,L2)->66
+C
+      BTEN(66)=-(SIJKL/(CIJKL*SJKL**2*RKL**2))+
+     >SIJKL*RKL2**2/(CIJKL*SJKL**2*RKL**4)-
+     >TWO*RKL2*BTIJKL(11)/RKL**2+SIJKL*BTIJKL(11)**2/CIJKL-
+     >TWO*CJKL*BTIJKL(11)*BANJKL(8)/SJKL+
+     >SIJKL*BANJKL(8)**2/(CIJKL*SJKL**2)
+C
+C     (L2,L3)->77
+C
+      BTEN(77)=SIJKL*RKL2*RKL3/(CIJKL*SJKL**2*RKL**4)+
+     >SIJKL*BTIJKL(12)*BTIJKL(11)/CIJKL+
+     >(-(RKL2*BTIJKL(12))-RKL3*BTIJKL(11))/RKL**2+
+     >SIJKL*BANJKL(9)*BANJKL(8)/(CIJKL*SJKL**2)+
+     >CJKL*(-(BTIJKL(11)*BANJKL(9))-
+     >BTIJKL(12)*BANJKL(8))/SJKL
+C
+C     (L3,L3)->78
+C
+      BTEN(78)=-(SIJKL/(CIJKL*SJKL**2*RKL**2))+
+     >SIJKL*RKL3**2/(CIJKL*SJKL**2*RKL**4)-TWO*RKL3*BTIJKL(12)/RKL**2+
+     >SIJKL*BTIJKL(12)**2/CIJKL-
+     >TWO*CJKL*BTIJKL(12)*BANJKL(9)/SJKL+
+     >SIJKL*BANJKL(9)**2/(CIJKL*SJKL**2)
+C
+      DO 51 II=1,NINT
+      DO 51 KK=1,II
+      SUM=ZERO
+C
+      DO 52 MC=1,12
+      M=3*ITO(INDEX(MC),IJKL)-2+IBUMP(MC)
+      DO 53 NC=1,MC-1
+      N=3*ITO(INDEX(NC),IJKL)-2+IBUMP(NC)
+      IPOINT=MC*(MC-1)/2+NC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   53 CONTINUE
+C
+      DO 52 NC=MC,12
+      N=3*ITO(INDEX(NC),IJKL)-2+IBUMP(NC)
+      IPOINT=NC*(NC-1)/2+MC
+      SUM=SUM+BI(M,II)*BI(N,KK)*BTEN(IPOINT)
+   52 CONTINUE
+      IPOINT=II*(II-1)/2+KK
+      BT(LINT,IPOINT)=SUM
+   51 CONTINUE        
+   50 CONTINUE
+C
+C
+C     ALL DONE
+C
+      RETURN 
+      END SUBROUTINE btens
+C
+C***********************************************************************
+C     BANGLE1
+C***********************************************************************
+C
+      SUBROUTINE bangle1(I,J,K,X,Y,Z,NATOM,BANG)
+C
+C     CALLED BY:
+C              BTENS
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES ON LINE THE MATRIX DR/DX FOR BENDINGS
+C
+      DIMENSION BANG(9),X(NATOM),Y(NATOM),Z(NATOM)
+C
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RJK1=X(K)-X(J)
+      RJK2=Y(K)-Y(J)
+      RJK3=Z(K)-Z(J)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+      CIJK=COSE(PIJK)
+      SIJK=SINE(PIJK)
+      BANG(1)=(-CIJK*RIJ1*RJK-RIJ*RJK1)/(SIJK*RIJ**2*RJK)
+      BANG(2)=(-CIJK*RIJ2*RJK-RIJ*RJK2)/(SIJK*RIJ**2*RJK)
+      BANG(3)=(-CIJK*RIJ3*RJK-RIJ*RJK3)/(SIJK*RIJ**2*RJK)
+      BANG(4)=
+     > (-RIJ*RIJ1*RJK+CIJK*RIJ1*RJK**2-CIJK*RIJ**2*RJK1+RIJ*RJK*RJK1)
+     > /(SIJK*RIJ**2*RJK**2)
+      BANG(5)=
+     > (-RIJ*RIJ2*RJK+CIJK*RIJ2*RJK**2-CIJK*RIJ**2*RJK2+RIJ*RJK*RJK2)
+     > /(SIJK*RIJ**2*RJK**2)
+      BANG(6)=
+     > (-RIJ*RIJ3*RJK+CIJK*RIJ3*RJK**2-CIJK*RIJ**2*RJK3+RIJ*RJK*RJK3)
+     > /(SIJK*RIJ**2*RJK**2)
+      BANG(7)=(RIJ1*RJK+CIJK*RIJ*RJK1)/(SIJK*RIJ*RJK**2)
+      BANG(8)=(RIJ2*RJK+CIJK*RIJ*RJK2)/(SIJK*RIJ*RJK**2)
+      BANG(9)=(RIJ3*RJK+CIJK*RIJ*RJK3)/(SIJK*RIJ*RJK**2)
+C
+C     ALL DONE
+C
+      RETURN 
+      END SUBROUTINE bangle1
+C
+C***********************************************************************
+C     BTORSN
+C***********************************************************************
+C
+      SUBROUTINE btorsn(I,J,K,L,X,Y,Z,NATOM,BTOR)
+C
+C     CALLED BY:
+C              BTENS
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+C     CALCULATES ON LINE THE MATRIX DR/DX FOR TORSIONS
+C
+      DIMENSION BTOR(12),X(NATOM),Y(NATOM),Z(NATOM)
+C
+      RIJ1=X(J)-X(I)
+      RIJ2=Y(J)-Y(I)
+      RIJ3=Z(J)-Z(I)
+      RJK1=X(K)-X(J)
+      RJK2=Y(K)-Y(J)
+      RJK3=Z(K)-Z(J)
+      RKL1=X(L)-X(K)
+      RKL2=Y(L)-Y(K)
+      RKL3=Z(L)-Z(K)
+      RIJ=DIST(I,J,X,Y,Z,NATOM)
+      RJK=DIST(J,K,X,Y,Z,NATOM)
+      RKL=DIST(K,L,X,Y,Z,NATOM)
+      PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+      CIJK=COSE(PIJK)
+      SIJK=SINE(PIJK)
+      PJKL=ANGL(J,K,L,X,Y,Z,NATOM)
+      CJKL=COSE(PJKL)
+      SJKL=SINE(PJKL)
+      CIJKL=((-RIJ2*RJK1+RIJ1*RJK2)*(-RJK2*RKL1+RJK1*RKL2)+
+     > (RIJ3*RJK1-RIJ1*RJK3)*(RJK3*RKL1-RJK1*RKL3)+
+     > (-RIJ3*RJK2+RIJ2*RJK3)*(-RJK3*RKL2+RJK2*RKL3))/
+     > (SIJK*SJKL*RIJ*RJK*RJK*RKL)
+      SIJKL=((-RIJ3*RJK2+RIJ2*RJK3)*RKL1+(RIJ3*RJK1-RIJ1*RJK3)*RKL2+
+     > (-(RIJ2*RJK1)+RIJ1*RJK2)*RKL3)/(RIJ*RJK*RKL*SIJK*SJKL)
+      BTOR(1)=SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ**2)+  
+     > CIJK*SIJKL*RJK1/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > (RJK3*RKL2-RJK2*RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(2)=SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ**2)+  
+     > CIJK*SIJKL*RJK2/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > (-RJK3*RKL1+RJK1*RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(3)=SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ**2)+  
+     > CIJK*SIJKL*RJK3/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > (RJK2*RKL1-RJK1*RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(4)=-(SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ**2))+  
+     > CIJK*SIJKL*(RIJ1-RJK1)/(CIJKL*SIJK**2*RIJ*RJK)-  
+     > SIJKL*RJK1/(CIJKL*RJK**2)+SIJKL*RJK1/(CIJKL*SIJK**2*RJK**2)+  
+     > SIJKL*RJK1/(CIJKL*SJKL**2*RJK**2)+  
+     > CJKL*SIJKL*RKL1/(CIJKL*SJKL**2*RJK*RKL)+  
+     > (-RIJ3*RKL2-RJK3*RKL2+RIJ2*RKL3+RJK2*RKL3)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(5)=-SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ**2)+  
+     > CIJK*SIJKL*(RIJ2-RJK2)/(CIJKL*SIJK**2*RIJ*RJK)-  
+     > SIJKL*RJK2/(CIJKL*RJK**2)+SIJKL*RJK2/(CIJKL*SIJK**2*RJK**2)+  
+     > SIJKL*RJK2/(CIJKL*SJKL**2*RJK**2)+  
+     > CJKL*SIJKL*RKL2/(CIJKL*SJKL**2*RJK*RKL)+  
+     > (RIJ3*RKL1+RJK3*RKL1-RIJ1*RKL3-RJK1*RKL3)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(6)=-SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ**2)+  
+     > CIJK*SIJKL*(RIJ3-RJK3)/(CIJKL*SIJK**2*RIJ*RJK)-  
+     > SIJKL*RJK3/(CIJKL*RJK**2)+SIJKL*RJK3/(CIJKL*SIJK**2*RJK**2)+  
+     > SIJKL*RJK3/(CIJKL*SJKL**2*RJK**2)+  
+     > (-RIJ2*RKL1-RJK2*RKL1+RIJ1*RKL2+RJK1*RKL2)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+  
+     > CJKL*SIJKL*RKL3/(CIJKL*SJKL**2*RJK*RKL)
+      BTOR(7)=-CIJK*SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > SIJKL*RJK1/(CIJKL*RJK**2)-SIJKL*RJK1/(CIJKL*SIJK**2*RJK**2)-  
+     > SIJKL*RJK1/(CIJKL*SJKL**2*RJK**2)+  
+     > CJKL*SIJKL*(RJK1-RKL1)/(CIJKL*SJKL**2*RJK*RKL)+  
+     > SIJKL*RKL1/(CIJKL*SJKL**2*RKL**2)+  
+     > (RIJ3*RJK2-RIJ2*RJK3+RIJ3*RKL2-RIJ2*RKL3)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(8)=-CIJK*SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > SIJKL*RJK2/(CIJKL*RJK**2)-SIJKL*RJK2/(CIJKL*SIJK**2*RJK**2)-  
+     > SIJKL*RJK2/(CIJKL*SJKL**2*RJK**2)+  
+     > CJKL*SIJKL*(RJK2-RKL2)/(CIJKL*SJKL**2*RJK*RKL)+  
+     > SIJKL*RKL2/(CIJKL*SJKL**2*RKL**2)+  
+     > (-RIJ3*RJK1+RIJ1*RJK3-RIJ3*RKL1+RIJ1*RKL3)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+      BTOR(9)=-CIJK*SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ*RJK)+  
+     > SIJKL*RJK3/(CIJKL*RJK**2)-SIJKL*RJK3/(CIJKL*SIJK**2*RJK**2)-  
+     > SIJKL*RJK3/(CIJKL*SJKL**2*RJK**2)+  
+     > (RIJ2*RJK1-RIJ1*RJK2+RIJ2*RKL1-RIJ1*RKL2)/  
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+  
+     > CJKL*SIJKL*(RJK3-RKL3)/(CIJKL*SJKL**2*RJK*RKL)+  
+     > SIJKL*RKL3/(CIJKL*SJKL**2*RKL**2)
+      BTOR(10)=-CJKL*SIJKL*RJK1/(CIJKL*SJKL**2*RJK*RKL)+  
+     > (-RIJ3*RJK2+RIJ2*RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-  
+     > SIJKL*RKL1/(CIJKL*SJKL**2*RKL**2)
+      BTOR(11)=-CJKL*SIJKL*RJK2/(CIJKL*SJKL**2*RJK*RKL)+  
+     > (RIJ3*RJK1-RIJ1*RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-  
+     > SIJKL*RKL2/(CIJKL*SJKL**2*RKL**2)
+      BTOR(12)=(-RIJ2*RJK1+RIJ1*RJK2)/
+     > (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-  
+     > CJKL*SIJKL*RJK3/(CIJKL*SJKL**2*RJK*RKL)-  
+     > SIJKL*RKL3/(CIJKL*SJKL**2*RKL**2)
+C
+C     ALL DONE
+C
+      RETURN 
+      END SUBROUTINE btorsn
+C
+C***********************************************************************
+C UPCAS
+C***********************************************************************
+C
+      SUBROUTINE upcas(STRING,LENSTR)
+C
+C     CALLED BY:
+C              READINT
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      CHARACTER*(*) STRING
+      CHARACTER*26 UCASE,LCASE
+C
+      DATA UCASE /'ABCDEFGHIJKLMNOPQRSTUVWXYZ'/
+      DATA LCASE /'abcdefghijklmnopqrstuvwxyz'/
+C
+C     CONVERTS LOWER CASE TO UPPER CASE IN THE GIVEN STRING.
+C           (ADAPTED FROM GAMESS)
+C
+      DO 100 I=1,LENSTR
+         IC = INDEX(LCASE,STRING(I:I))
+         IF (IC.GT.0) STRING(I:I) = UCASE(IC:IC)
+  100 CONTINUE
+      RETURN
+      END SUBROUTINE upcas
+C
+C***********************************************************************
+C  TRANLF
+C***********************************************************************
+C
+      SUBROUTINE tranlf(IOP,N3,F,AMASS) 
+      use perconparam, only : n3tm
+      use intbsv
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      DIMENSION AMASS(N3TM),F(N3TM,N3TM)
+C
+C     CONVERTS CARTESIAN TO MASS-WEIGHTED COORDINATES (IOP=1)
+C     OR MASS-WEIGHTED TO CARTESIAN COORDINATES (IOP=2)
+C     THE RESULTS ARE STORED IN LOWER TRIANGLE FORM (FL)
+C 
+      CALL intbsv_mem
+      IP=0
+      DO 20 I=1, N3
+         DO 10 J = 1, I 
+            IP=I*(I-1)/2 + J
+            IF (IOP.EQ.2) THEN
+               FL(IP) = F(I,J)*AMASS(I)*AMASS(J)
+            ELSE
+               FL(IP) = F(I,J)/(AMASS(I)*AMASS(J))
+            ENDIF
+   10    CONTINUE
+   20 CONTINUE
+C
+      RETURN
+      END SUBROUTINE tranlf
+C
+C***********************************************************************
+C     GFDIA2  (a spinoff from GFDIAG)
+C***********************************************************************
+C
+      SUBROUTINE gfdia2(ISSAD,F,ALAMBD,AVEC,FLGM,EGNM,
+     >                  SCR1,SCR2,SCR3,NI)                              0731BL03
+C
+C     CALLED BY:
+C          CVCOOR
+C     CALLS:
+C          JACSCF,MATX,ABSORD
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION F(NI,NI),ALAMBD(NI)
+     *,AVEC(NI,NI),SCR1(NI*NI),SCR2(NI,NI)
+     *,SCR3(NI,NI),FLGM(NI),EGNM(NI,NI),iscr1(ni,ni)
+      LOGICAL ISSAD                                                     0317YC99 
+C
+      DATA ONE/1.0D00/,ZERO/0.0D00/,EPS/1.D-10/
+C
+C     TAKE THE SQUARE ROOTS OF THE EIGENVALUES AND EXPAND INTO
+C     SQUARE MATRIX
+C     ZERO OUT THE SCR2 MATRIX
+C
+      SCR2 = ZERO
+C
+C     REPLACE DIAGONAL ELEMENTS WITH SQUARE ROOTS OF EIGENVALUES
+C     CHECK (IN DEBUGGING) TO MAKE SURE THESE ARE POSITIVE
+C
+      DO 50 I = 1,NI
+         IF (FLGM(I).GE.ZERO)THEN
+            SCR2(I,I) = DSQRT(FLGM(I))
+         ELSE
+            WRITE(6,*)'ERROR IN GFDIAG, NEGATIVE SQUARE ROOT'
+            WRITE(6,*)'I,FLGM(I)=',I,FLGM(I)
+            STOP
+         ENDIF
+   50 CONTINUE
+C
+C     FORM THE PRODUCT A = Z*DSQRT(P)
+C
+      CALL MATX(SCR3,1,EGNM,1,SCR2,1,NI,NI,NI,NI)
+C
+C     FORM THE PRODUCT A-tr*F*A, WHICH IS SYMMETRIC
+C
+      CALL MATX(SCR2,1,F,1,SCR3,1,NI,NI,NI,NI)
+      CALL MATX(SCR1,-1,SCR3,0,SCR2,1,NI,NI,NI,NI)
+C
+C     DIAGONALIZE THE A-tr*F*A matrix
+C
+          CALL JACSCF(SCR1,SCR2,ALAMBD,NI,-1,EPS)     
+
+C
+C     CONVERT EIGENVALUES TO FREQUENCIES, PRESERVING THE SIGN
+C
+      DO 70 I = 1,NI
+         ALAMBD(I) = DSQRT(DABS(ALAMBD(I)))*DSIGN(ONE,ALAMBD(I))
+   70 CONTINUE
+C
+C     FORM EIGENVECTORS OF GF PRODUCT AS L = A*Y
+C
+      CALL MATX(AVEC,1,SCR3,1,SCR2,1,NI,NI,NI,NI)
+C
+C     ORDER THE FREQS AND VECTORS IN ASCENDING ORDER by ABS VALUE
+C
+      IF (ISSAD) THEN                                                   0317YC99
+        CALL ABSORD1(AVEC,ALAMBD,ISCR1,SCR2,NI,NI,NI)                    0317YC99
+      else                                                              0317YC99
+        CALL ABSORD(AVEC,ALAMBD,ISCR1,SCR2,NI,NI,NI)                     0317YC99
+      ENDIF                                                             0317YC99
+C
+      RETURN
+      END SUBROUTINE gfdia2
+C
+C***********************************************************************
+C     MTINV2  (a spinoff from MATINV)
+C***********************************************************************
+C
+      SUBROUTINE MTINV2(A,N,M,Y)
+      use perconparam
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION A(MAXINT,MAXINT),Y(MAXINT,MAXINT),U(MAXINT,MAXINT)
+      DIMENSION W(MAXINT),V(MAXINT,MAXINT)
+      DATA ONE/1.0D00/,ZERO/0.0D00/
+C
+C     Copy A into U to preserve A
+C
+!      DO 12 K=1,N
+!            DO 11 L=1,N
+!                  U(K,L)=A(K,L)
+!11          CONTINUE
+!12    CONTINUE
+      U(:,:) = A(:,:)
+C
+      DO 10 I=1,N
+            DO 13 J=1,N
+                  Y(I,J)=ZERO
+13          CONTINUE
+            Y(I,I)=ONE
+10    CONTINUE
+C
+C     Decompose matrix A
+C
+      CALL SVDCMP(U,N,N,MAXINT,MAXINT,W,V)
+C
+C     Find maximum singular value
+C
+      WMAX=0.0d0
+      DO 15 K=1,N
+            IF (W(K).GT.WMAX) WMAX=W(K)
+15    CONTINUE
+C
+C     Define "small"
+C
+      WMIN=WMAX*(1.0D-6)
+C
+C     Zero the "small" singular values
+C
+      DO 14 K=1,N
+            IF (W(K).LT.WMIN) W(K)=0.0
+14    CONTINUE
+C
+C     Backsubstitute for each right-hand side vector
+C
+      DO 18 J=1,M
+         CALL SVBKSB(U,W,V,N,N,MAXINT,MAXINT,Y(1,J),Y(1,J))
+18    CONTINUE
+      RETURN
+      END SUBROUTINE MTINV2
+C
+C***********************************************************************
+C     SVBKSB
+C***********************************************************************
+C
+      SUBROUTINE svbksb(U,W,V,M,N,MP,NP,B,X)
+      use perconparam
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION U(MP,NP),W(NP),V(NP,NP),B(MP),X(NP),TMP(MAXINT)
+      DO 12 J=1,N
+        S=0.
+        IF(W(J).NE.0.)THEN
+          DO 11 I=1,M
+            S=S+U(I,J)*B(I)
+11        CONTINUE
+          S=S/W(J)
+        ENDIF
+        TMP(J)=S
+12    CONTINUE
+      DO 14 J=1,N
+        S=0.
+        DO 13 JJ=1,N
+          S=S+V(J,JJ)*TMP(JJ)
+13      CONTINUE
+        X(J)=S
+14    CONTINUE
+      RETURN
+      END SUBROUTINE svbksb
+C
+C***********************************************************************
+C     SVDCMP  
+C***********************************************************************
+C
+      SUBROUTINE svdcmp(A,M,N,MP,NP,W,V)
+      use perconparam
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DIMENSION A(MP,NP),W(NP),V(NP,NP),RV1(MAXINT)
+      G=0.0
+      SCALE=0.0
+      ANORM=0.0
+      DO 25 I=1,N
+        L=I+1
+        RV1(I)=SCALE*G
+        G=0.0
+        S=0.0
+        SCALE=0.0
+        IF (I.LE.M) THEN
+          DO 11 K=I,M
+            SCALE=SCALE+dabs(A(K,I))
+11        CONTINUE
+          IF (SCALE.NE.0.0) THEN
+            DO 12 K=I,M
+              A(K,I)=A(K,I)/SCALE
+              S=S+A(K,I)*A(K,I)
+12          CONTINUE
+            F=A(I,I)
+            G=-DSIGN(DSQRT(S),F)
+            H=F*G-S
+            A(I,I)=F-G
+            IF (I.NE.N) THEN
+              DO 15 J=L,N
+                S=0.0
+                DO 13 K=I,M
+                  S=S+A(K,I)*A(K,J)
+13              CONTINUE
+                F=S/H
+                DO 14 K=I,M
+                  A(K,J)=A(K,J)+F*A(K,I)
+14              CONTINUE
+15            CONTINUE
+            ENDIF
+            DO 16 K= I,M
+              A(K,I)=SCALE*A(K,I)
+16          CONTINUE
+          ENDIF
+        ENDIF
+        W(I)=SCALE *G
+        G=0.0
+        S=0.0
+        SCALE=0.0
+        IF ((I.LE.M).AND.(I.NE.N)) THEN
+          DO 17 K=L,N
+            SCALE=SCALE+dabs(A(I,K))
+17        CONTINUE
+          IF (SCALE.NE.0.0) THEN
+            DO 18 K=L,N
+              A(I,K)=A(I,K)/SCALE
+              S=S+A(I,K)*A(I,K)
+18          CONTINUE
+            F=A(I,L)
+            G=-DSIGN(DSQRT(S),F)
+            H=F*G-S
+            A(I,L)=F-G
+            DO 19 K=L,N
+              RV1(K)=A(I,K)/H
+19          CONTINUE
+            IF (I.NE.M) THEN
+              DO 23 J=L,M
+                S=0.0
+                DO 21 K=L,N
+                  S=S+A(J,K)*A(I,K)
+21              CONTINUE
+                DO 22 K=L,N
+                  A(J,K)=A(J,K)+S*RV1(K)
+22              CONTINUE
+23            CONTINUE
+            ENDIF
+            DO 24 K=L,N
+              A(I,K)=SCALE*A(I,K)
+24          CONTINUE
+          ENDIF
+        ENDIF
+        ANORM=MAX(ANORM,(dabs(W(I))+dabs(RV1(I))))
+25    CONTINUE
+      DO 32 I=N,1,-1
+        IF (I.LT.N) THEN
+          IF (G.NE.0.0) THEN
+            DO 26 J=L,N
+              V(J,I)=(A(I,J)/A(I,L))/G
+26          CONTINUE
+            DO 29 J=L,N
+              S=0.0
+              DO 27 K=L,N
+                S=S+A(I,K)*V(K,J)
+27            CONTINUE
+              DO 28 K=L,N
+                V(K,J)=V(K,J)+S*V(K,I)
+28            CONTINUE
+29          CONTINUE
+          ENDIF
+          DO 31 J=L,N
+            V(I,J)=0.0
+            V(J,I)=0.0
+31        CONTINUE
+        ENDIF
+        V(I,I)=1.0
+        G=RV1(I)
+        L=I
+32    CONTINUE
+      DO 39 I=N,1,-1
+        L=I+1
+        G=W(I)
+        IF (I.LT.N) THEN
+          DO 33 J=L,N
+            A(I,J)=0.0
+33        CONTINUE
+        ENDIF
+        IF (G.NE.0.0) THEN
+          G=1.0/G
+          IF (I.NE.N) THEN
+            DO 36 J=L,N
+              S=0.0
+              DO 34 K=L,M
+                S=S+A(K,I)*A(K,J)
+34            CONTINUE
+              F=(S/A(I,I))*G
+              DO 35 K=I,M
+                A(K,J)=A(K,J)+F*A(K,I)
+35            CONTINUE
+36          CONTINUE
+          ENDIF
+          DO 37 J=I,M
+            A(J,I)=A(J,I)*G
+37        CONTINUE
+        ELSE
+          DO 38 J= I,M
+            A(J,I)=0.0
+38        CONTINUE
+        ENDIF
+        A(I,I)=A(I,I)+1.0
+39    CONTINUE
+      DO 49 K=N,1,-1
+        DO 48 ITS=1,30
+          DO 41 L=K,1,-1
+            NM=L-1
+            IF ((dabs(RV1(L))+ANORM).EQ.ANORM)  GO TO 2
+            IF ((dabs(W(NM))+ANORM).EQ.ANORM)  GO TO 1
+41        CONTINUE
+1         C=0.0
+          S=1.0
+          DO 43 I=L,K
+            F=S*RV1(I)
+            IF ((dabs(F)+ANORM).NE.ANORM) THEN
+              G=W(I)
+              H=DSQRT(F*F+G*G)
+              W(I)=H
+              H=1.0/H
+              C= (G*H)
+              S=-(F*H)
+              DO 42 J=1,M
+                Y=A(J,NM)
+                Z=A(J,I)
+                A(J,NM)=(Y*C)+(Z*S)
+                A(J,I)=-(Y*S)+(Z*C)
+42            CONTINUE
+            ENDIF
+43        CONTINUE
+2         Z=W(K)
+          IF (L.EQ.K) THEN
+            IF (Z.LT.0.0) THEN
+              W(K)=-Z
+              DO 44 J=1,N
+                V(J,K)=-V(J,K)
+44            CONTINUE
+            ENDIF
+            GO TO 3
+          ENDIF
+          IF (ITS.EQ.30) STOP 
+     *         'SVD ERROR -- no convergence in 30 iterations'
+          X=W(L)
+          NM=K-1
+          Y=W(NM)
+          G=RV1(NM)
+          H=RV1(K)
+          F=((Y-Z)*(Y+Z)+(G-H)*(G+H))/(2.0*H*Y)
+          G=DSQRT(F*F+1.0)
+          F=((X-Z)*(X+Z)+H*((Y/(F+DSIGN(G,F)))-H))/X
+          C=1.0
+          S=1.0
+          DO 47 J=L,NM
+            I=J+1
+            G=RV1(I)
+            Y=W(I)
+            H=S*G
+            G=C*G
+            Z=DSQRT(F*F+H*H)
+            RV1(J)=Z
+            C=F/Z
+            S=H/Z
+            F= (X*C)+(G*S)
+            G=-(X*S)+(G*C)
+            H=Y*S
+            Y=Y*C
+            DO 45 NM=1,N
+              X=V(NM,J)
+              Z=V(NM,I)
+              V(NM,J)= (X*C)+(Z*S)
+              V(NM,I)=-(X*S)+(Z*C)
+45          CONTINUE
+            Z=DSQRT(F*F+H*H)
+            W(J)=Z
+            IF (Z.NE.0.0) THEN
+              Z=1.0/Z
+              C=F*Z
+              S=H*Z
+            ENDIF
+            F= (C*G)+(S*Y)
+            X=-(S*G)+(C*Y)
+            DO 46 NM=1,M
+              Y=A(NM,J)
+              Z=A(NM,I)
+              A(NM,J)= (Y*C)+(Z*S)
+              A(NM,I)=-(Y*S)+(Z*C)
+46          CONTINUE
+47        CONTINUE
+          RV1(L)=0.0
+          RV1(K)=F
+          W(K)=X
+48      CONTINUE
+3       CONTINUE
+49    CONTINUE
+      RETURN
+      END SUBROUTINE svdcmp
+C
+C***********************************************************************
+C     ABSORD1                                                           0317YC99
+C***********************************************************************
+C
+      SUBROUTINE absord1(C,D,N,X,IA,IB,NBASIS)
+C
+C   ORDER THE IB LOWEST EIGENVALUES D AND EIGENVECTORS C
+C   FROM A SET OF IA EIGENVECTORS OF LENGTH NBASIS
+C   N AND X ARE SCRATCH REGIONS OF LENGTH IA AND NBASIS
+C   MODIFIED TO USE ABSOLUTE VALUES
+C
+C     CALLED BY:
+C              GFDIAG,ICSAVE
+C
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+      DIMENSION C(*),D(*),N(*),X(*)                                     1020BE05
+C
+      NA=NBASIS
+      DO 105 I=1,IA
+105   N(I)=I
+      IN=IA-1
+      IF(IN.LE.0) GO TO 200
+      DO 115 I=1,IN
+      DO 110 J=1,I
+      K=I-J+1
+      IF(D(K+1).GE.D(K))GO TO 115
+      X(1)=D(K)
+      D(K)=D(K+1)
+      D(K+1)=X(1)
+      JA=N(K)
+      N(K)=N(K+1)
+      N(K+1)=JA
+110   CONTINUE
+115   CONTINUE
+      IF(IB+1.GE.IA) GO TO 126
+      IC=IB+1
+      DO 125 I=IC,IN
+      DO 120 J=IC,I
+      K=I-J+IC
+      IF(N(K+1).GE.N(K)) GO TO 125
+      X(1)=D(K)
+      D(K)=D(K+1)
+      D(K+1)=X(1)
+      JA=N(K)
+      N(K)=N(K+1)
+      N(K+1)=JA
+120   CONTINUE
+125   CONTINUE
+126   CONTINUE
+C          REARRANGE EIGENVECTORS
+      KH=0
+150   KH=KH+1
+      IF(KH.GE.IA)GO TO 200
+      K=N(KH)
+      IF(KH.EQ.K) GO TO 150
+      IF(K.EQ.0) GO TO 150
+      IG=NA*K
+      IH=IG
+      DO 155 I=1,NA
+      X(I)=C(IH)
+155   IH=IH-1
+130   KL=N(K)
+      N(K)=0
+      K=KL
+      IH=NA*K
+      IN=IG
+      IG=IH
+      DO 135 I=1,NA
+      C(IN)=C(IH)
+      IN=IN-1
+135   IH=IH-1
+      IF(K.NE.KH) GO TO 130
+      DO 145 I=1,NA
+      C(IG)=X(I)
+145   IG=IG-1
+      GO TO 150
+200   RETURN
+      END  SUBROUTINE absord1
+C
+C*******************************************************************
+C     DBARFREQ
+C*******************************************************************
+C
+      SUBROUTINE dbarfreq(ISSAD)
+      use perconparam
+      use common_inc
+      use intbsv; use cm
+      use rate_const
+      use kintcm
+      use sst
+C
+C     It is to calculate torsion-projected frequencies used for the 
+C     SS-T method. 
+C     See Physical Chemistry Chemical Physics 13, 10885-10907 (2011).
+C
+C     LIMITATIONS:
+C     1. Without out-of-plane wags.
+C     2. Only non-redundant internal coordinates are used.
+C
+C     CALLED BY:
+C              CVCOOR
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+C
+      LOGICAL ISSAD                                                     0317YC99
+C     CHARACTER*2 AL
+      CHARACTER*2, allocatable :: AL(:)
+      real(8), allocatable :: XX(:),DXINT(:),XC(:),YC(:),ZC(:)
+      real(8), allocatable :: DXX(:),SCR1(:),SCR2(:),SCR3(:),GM(:)
+      real(8), allocatable :: AMASIN(:),FINT(:),FREQI(:),AVEC(:)
+      real(8), allocatable :: FREQISC(:),DXINTB(:),FLGMB(:),AVECB(:)
+      real(8), allocatable :: AMASINB(:)
+      real(8), allocatable :: FINTB(:),GGIB(:),EGNMB(:),GMB(:)
+C
+C     DIMENSION AL(NATOMS), XX(N3TM),DXINT(MAXINT)
+C     DIMENSION XC(NATOMS),YC(NATOMS),ZC(NATOMS), DXX(N3TM)
+C     DIMENSION SCR1(N3TM*MAXINT)                                       0626YC97
+C     DIMENSION SCR2(N3TM*MAXINT)                                       0626YC97
+C     DIMENSION SCR3(N3TM*MAXINT)                                       0626YC97
+C     DIMENSION GM(MAXINT*MAXINT)                                       0626YC97
+C     DIMENSION AMASIN(N3TM*N3TM)
+C     DIMENSION FINT(MAXINT*MAXINT)
+C     DIMENSION FREQI(N3TM)
+C     DIMENSION AVEC(N3TM*N3TM)
+C
+C     DIMENSION FREQISC(N3TM)                                           0211PJ01   
+C     DIMENSION DXINTB(MAXINT)                                          0214PJ01       
+C     DIMENSION FLGMB(MAXINT)                                           0215PJ01
+C     DIMENSION AVECB(N3TM*N3TM)                                        0214PJ01  
+C     DIMENSION AMASINB(N3TM*N3TM)                                      0214PJ01 
+C     DIMENSION SCR1B(N3TM*MAXINT)                                      0214PJ01
+C     DIMENSION SCR2B(N3TM*MAXINT)                                      0214PJ01
+C     DIMENSION SCR3B(N3TM*MAXINT)                                      0214PJ01 
+C     DIMENSION FINTB(MAXINT*MAXINT)                                    0214PJ01
+C     DIMENSION GGIB(MAXINT*MAXINT)                                     0215PJ01
+C     DIMENSION EGNMB(MAXINT*MAXINT)                                    0215PJ01  
+C     DIMENSION GMB(MAXINT*MAXINT)                                      0215PJ01
+C
+C store the orientation of the coordinate system for L bend             0905YC96
+c
+      DIMENSION T(3,3)                      
+C
+      SAVE                                                              0601YC98
+      allocate(AL(NATOMS), XX(N3TM),DXINT(MAXINT))
+      allocate(XC(NATOMS),YC(NATOMS),ZC(NATOMS),DXX(N3TM))
+      allocate(GM(MAXINT*MAXINT),AMASIN(N3TM*N3TM),FINT(MAXINT*MAXINT))
+      allocate(FREQI(N3TM),AVEC(N3TM*N3TM),FREQISC(N3TM),DXINTB(MAXINT))
+      allocate(FLGMB(MAXINT),AVECB(N3TM*N3TM),AMASINB(N3TM*N3TM))
+      allocate(FINTB(MAXINT*MAXINT),GGIB(MAXINT*MAXINT))
+      allocate(EGNMB(MAXINT*MAXINT),GMB(MAXINT*MAXINT))
+      IF(.NOT.ALLOCATED(SCR1)) THEN
+      allocate(SCR1(N3TM*MAXINT),SCR2(N3TM*MAXINT),SCR3(N3TM*MAXINT))
+      ENDIF
+      if(allocated(core))deallocate(core)
+      allocate(core(maxcor)); core=0.d00
+      core = 0d0
+
+      NCART = N3
+      NINT  = NUMINT-NTOR
+C
+C  MAKE LOCAL COPIES OF POSITION AND GRADIENT
+C
+      DO 20 I = 1, N3    
+         XX(I) = X(I)
+         DXX(I) = DX(I)
+ 20   CONTINUE
+C
+C     Convert gradient and positions vectors 
+C     mass scaled Cartesians to Cartesians.
+C
+      CALL TRANS(2,N3,AMASS,XX,DXX)
+C
+C  UNSCALE AND UNNORMALIZE THE GRADIENT.  IT HAD BEEN SCALED IN MW 
+C  COORDS SO THAT LARGEST ELEMENT WAS UNITY AND NORMALIZED SO THAT
+C  NORM WAS ONE.  THESE TWO FACTORS ARE COMBINED IN DXMAG.  AFTER THIS
+C  THE GRADIENT IS UNSCALED, UNNORMALIZED, AND IN CARTESIAN COORDS
+C
+C Unormalize DXX
+C
+        DO 40 I = 1,NCART
+          DXX(I) = DXX(I) * DXMAG
+   40   CONTINUE
+C
+      DO 30 I = 1, NATOM
+         XC(I) = XX(3*I-2)
+         YC(I) = XX(3*I-1)
+         ZC(I) = XX(3*I)
+ 30   CONTINUE
+C
+C     CALCULATE THE DR/DX MATRIX
+C
+      IBM=1
+C
+C     CALL BMAT
+C    > (NBL,NBA,NTO-NTOR,NLBE,IBL,IBA,ITO,ILBE,XC,YC,ZC,NATOM,NINT,
+C    >                                                 CORE(IBM),T)     
+      CALL BMAT
+     > (NBL,NBA,NTO-NTOR,NIMP,NLBE,IBL,IBA,ITO,IMP,ILBE,XC,YC,ZC,
+     >                                     NATOM,NINT, CORE(IBM),T)     0413JZ14
+c
+c     adding 1 to indicate dy/dy for collective solvent coordinate
+c     since the solvent mode is assumed to be an internal coordinate
+c     other derivatives are zeros, same as the elements in C tensors
+c
+C     CALCULATE THE DX/DR MATRIX
+C
+      IBI=IBM+MAXCAR*MAXINT
+C
+      CALL BIMAT                                                        
+     >  (CORE(IBM),CORE(IBI),AMASS,AMASIN,GM,REDM,NATOM,NINT,NCART)      
+C
+C     CONVERT GRADIENT IN CARTESIANS TO INTERNAL COORDINATES
+C     G(int) = A-tr*G(carts) 
+C     where A is core(ibi)
+C
+      CALL TRANG(DXINT,CORE(IBI),DXX,MAXINT,MAXCAR,NINT,NCART)
+C
+C
+      IBT=IBI+MAXCAR*MAXINT
+C
+      CALL BTENS
+     > (NBL,NBA,NTO-NTOR,NLBE,IBL,IBA,ITO,ILBE,XC,YC,ZC,NATOM,  
+     > CORE(IBI),CORE(IBT),NINT,NCART,MAXINT,MAXIN2,T)   
+C
+      IF2=IBT+MAXIN2*MAXINT
+C
+C     FORM THE SECOND TERM OF INTERNAL FORCE CONSTANT MATRIX
+C
+      CALL FORMF2(CORE(IF2),CORE(IBT),DXINT,MAXINT,MAXIN2,NINT)
+C
+C     TRANFORM CARTESIAN FORCE CONSTANT MATRIX INTO INTERNAL
+C
+      IHFC = IF2 + MAXIN2
+      IWORK = IHFC + MAXIN2
+C  
+      CALL TRANFC(                                                      0317YC99
+     > FL,CORE(IBI),CORE(IWORK),CORE(IHFC),CORE(IF2),NATOM,             0317YC99
+     > MAXINT,MAXCAR,MAXIN2,NINT,NCART)
+C
+      CALL EXPND(CORE(IHFC),FINT,NINT,0)
+C
+C     now project out the reaction coordinate direction        
+C
+      IF (.NOT.ISSAD) THEN                                   
+         CALL PROJF(FINT,DXINT,CORE(IBM),SCR1,SCR2,SCR3,GM              
+     *              ,AMASIN,NINT,NCART)                         
+       END IF                                                  
+C
+C     scaling the force constant matrix by freqfac**2 that is equivalent
+C     to scale the frequencies by freqfac 
+C
+      FREQFAC2 = FREQFAC**2
+      FINT(:) = FINT(:)*FREQFAC2
+C
+C     diagonalize the GF matrix 
+C
+      FREQI =0d0
+      CALL GFDIAG(ISSAD,GM,FINT,FREQI,AVEC,SCR1,SCR2,SCR3,NINT)
+C
+      write(fu6,*) ' Double barred Omega (cm-1) '
+      DO I = 1, N3TM
+         DBWTMP(I) = FREQI(I)
+         write(fu6, '(f8.2)') DBWTMP(I)*AUTOCM
+      ENDDO
+C
+      deallocate(AL,XX,DXINT,XC,YC,ZC,DXX)
+C     deallocate(SCR1,SCR2,SCR3,GM,AMASIN,FINT,FREQI,AVEC,FREQISC)
+      deallocate(GM,AMASIN,FINT,FREQI,AVEC,FREQISC)
+      deallocate(DXINTB,FLGMB,AVECB,AMASINB)
+      deallocate(FINTB,GGIB,EGNMB,GMB)
+      RETURN
+      END
+C
+C***********************************************************************
+C      BMAT
+C***********************************************************************
+C
+!
+!      SUBROUTINE bmat(NF,NBL,NBA,NTO,NLBE,IBL,IBA,ITO,ILBE,X,Y,Z,NATOM,NINTC,BM,T)
+       SUBROUTINE bmat(NBL,NBA,NTO,NIMP,NLBE,IBL,IBA,ITO,IMP,ILBE,
+     &                 X,Y,Z,NATOM,NINTC,BM,T)
+!
+!     CALCULATES THE MATRIX DR/DX (B matrix)
+!     Out-of-plane bending/improper torsion is implemented April 2014 (J. Zheng)
+!
+      implicit none
+      integer :: irow, ij, nf, nbl, nba, nto,nimp, nlbe, natom, nintc
+      integer :: i, j, ijk, im, k, l, ijkl
+!     integer :: IBL(2,NF),IBA(3,NF),ITO(4,NF),IMP(4,NF),ILBE(3,NF)
+      integer :: IBL(2,NBL),IBA(3,NBA),ITO(4,NTO),IMP(4,NIMP),
+     &           ILBE(3,NLBE)
+      real*8 :: dist, angl, cose, sine
+      real*8 :: BM(NINTC,3*NATOM), X(NATOM),Y(NATOM),Z(NATOM)
+      real*8 :: PX(3),PY(3),PZ(3),V(3),T(3,3),BMTE(3)
+      real*8 :: rij, rij1, rij2, rij3, rjk1, rjk2, rjk3, rjk, pijk
+      real*8 :: cijk, sijk, pxmg, pymg, pzmg, sjkl, sijkl
+      real*8 :: rkl, rkl1, rkl2, rkl3, cjkl, cijkl, pjkl
+      real*8 :: rjl1,rjl2,rjl3,pkjl,pijl,theta,ctheta,ttheta
+      real*8 :: EJK(3),EJL(3),EJI(3)
+      real*8 :: rjl,rji,ckjl,skjl,cijl
+!
+      BM(:,:) = 0D0
+      IROW=0
+      DO IJ=1,NBL
+         IROW=IROW+1
+         I=IBL(1,IJ)
+         J=IBL(2,IJ)
+         RIJ1=X(J)-X(I)
+         RIJ2=Y(J)-Y(I)
+         RIJ3=Z(J)-Z(I)
+         RIJ=DIST(I,J,X,Y,Z,NATOM)
+         BM(IROW,3*I-2)=-RIJ1/RIJ
+         BM(IROW,3*I-1)=-RIJ2/RIJ
+         BM(IROW,3*I)=-RIJ3/RIJ
+         BM(IROW,3*J-2)=RIJ1/RIJ
+         BM(IROW,3*J-1)=RIJ2/RIJ
+         BM(IROW,3*J)=RIJ3/RIJ
+      enddo    
+!
+      DO IJK=1,NBA
+        IROW=IROW+1
+        I=IBA(1,IJK)
+        J=IBA(2,IJK)
+        K=IBA(3,IJK)
+        RIJ1=X(J)-X(I)
+        RIJ2=Y(J)-Y(I)
+        RIJ3=Z(J)-Z(I)
+        RJK1=X(K)-X(J)
+        RJK2=Y(K)-Y(J)
+        RJK3=Z(K)-Z(J)
+        RIJ=DIST(I,J,X,Y,Z,NATOM)
+        RJK=DIST(J,K,X,Y,Z,NATOM)
+        PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+        CIJK=COSE(PIJK)
+        SIJK=SINE(PIJK)
+        BM(IROW,3*I-2)=(-CIJK*RIJ1*RJK-RIJ*RJK1)/(SIJK*RIJ**2*RJK)
+        BM(IROW,3*I-1)=(-CIJK*RIJ2*RJK-RIJ*RJK2)/(SIJK*RIJ**2*RJK)
+        BM(IROW,3*I)=(-CIJK*RIJ3*RJK-RIJ*RJK3)/(SIJK*RIJ**2*RJK)
+        BM(IROW,3*J-2)= (-RIJ*RIJ1*RJK+CIJK*RIJ1*RJK**2-CIJK*RIJ**2
+     &      *RJK1+RIJ*RJK*RJK1)/(SIJK*RIJ**2*RJK**2)
+        BM(IROW,3*J-1)= (-RIJ*RIJ2*RJK+CIJK*RIJ2*RJK**2-CIJK*RIJ**2
+     &       *RJK2+RIJ*RJK*RJK2)/(SIJK*RIJ**2*RJK**2)
+        BM(IROW,3*J)= (-RIJ*RIJ3*RJK+CIJK*RIJ3*RJK**2-CIJK*RIJ**2
+     &       *RJK3+RIJ*RJK*RJK3)/(SIJK*RIJ**2*RJK**2)
+        BM(IROW,3*K-2)=(RIJ1*RJK+CIJK*RIJ*RJK1)/(SIJK*RIJ*RJK**2)
+        BM(IROW,3*K-1)=(RIJ2*RJK+CIJK*RIJ*RJK2)/(SIJK*RIJ*RJK**2)
+        BM(IROW,3*K)=(RIJ3*RJK+CIJK*RIJ*RJK3)/(SIJK*RIJ*RJK**2)
+      enddo    
+!
+!
+!     B-matrix for linear bend  - added 09xxYC96
+!
+      DO IJK=1,NLBE
+        IROW=IROW+1
+        I=ILBE(1,IJK)
+        J=ILBE(2,IJK)
+        K=ILBE(3,IJK) 
+        RIJ=DIST(I,J,X,Y,Z,NATOM)
+        RJK=DIST(J,K,X,Y,Z,NATOM)
+!
+!  remember C-A-B ==> K-J-I : cases of z-axis
+!
+!  choice #1 : Z axis is assigned as rjk
+!
+!      PZ(1)=X(K)-X(J)
+!      PZ(2)=Y(K)-Y(J)
+!      PZ(3)=Z(K)-Z(J)
+!
+!  choice #2 : Z axis is assigned as rij
+!
+!      PZ(1)=X(J)-X(I)
+!      PZ(2)=Y(J)-Y(I)
+!      PZ(3)=Z(J)-Z(I)
+!
+!  choice #3 : Z axis is assigned as rik
+!
+        PZ(1)=X(K)-X(I)
+        PZ(2)=Y(K)-Y(I)
+        PZ(3)=Z(K)-Z(I)
+!
+        IF (ABS(PZ(3)/RJK).NE.1) THEN
+!
+!     set up local coordinates
+!
+          V(1)=1.0d0
+          V(2)=1.0d0
+          V(3)=1.0d0
+!
+!     find PY perpendicular to PZ and V
+!
+          CALL XPROD(V,PZ,PY)
+!
+!     find PX perpendicular to PY and PZ
+!
+          CALL XPROD(PY,PZ,PX)
+!
+!     normalize
+!
+          PXMG=0.0d0
+          PYMG=0.0d0
+          DO IM=1,3
+            PXMG=PXMG+PX(IM)*PX(IM)
+            PYMG=PYMG+PY(IM)*PY(IM)
+          ENDDO
+          PXMG=SQRT(PXMG)
+          PYMG=SQRT(PYMG)
+          PZMG=RJK
+!
+!   set up transpose of transformation matrix
+!
+          DO IM=1,3
+            T(1,IM)=PX(IM)/PXMG
+            T(2,IM)=PY(IM)/PYMG
+            T(3,IM)=PZ(IM)/PZMG
+          ENDDO
+        ELSE
+          DO IM=1,3
+            IF(PZ(3)/PZMG.LT.0) THEN
+               T(IM,IM)=-1.0d0
+            ELSE
+               T(IM,IM)=1.0d0
+            ENDIF
+          ENDDO
+        ENDIF
+!
+!   the Ry mode ; Califano + Mathematica
+!
+!   in Califano the molecule in C-A-B
+!   here is                     K-J-I
+!
+        BMTE(1)= 1.0d0/RIJ 
+        BMTE(2)= -(RIJ+RJK)/(RIJ*RJK)
+        BMTE(3)= 1.0d0/RJK
+!
+!   transform back to the original coordinates
+!     B = B'T(transpose)
+!
+        BM(IROW,3*I-2)=BMTE(1)*T(1,1)
+        BM(IROW,3*I-1)=BMTE(1)*T(1,2)
+        BM(IROW,3*I)  =BMTE(1)*T(1,3)
+        BM(IROW,3*J-2)=BMTE(2)*T(1,1)
+        BM(IROW,3*J-1)=BMTE(2)*T(1,2)
+        BM(IROW,3*J)  =BMTE(2)*T(1,3)
+        BM(IROW,3*K-2)=BMTE(3)*T(1,1)
+        BM(IROW,3*K-1)=BMTE(3)*T(1,2)
+        BM(IROW,3*K)  =BMTE(3)*T(1,3)
+!
+!   the Rx mode 
+!
+        IROW=IROW+1
+        BM(IROW,3*I-2)=BMTE(1)*T(2,1)
+        BM(IROW,3*I-1)=BMTE(1)*T(2,2)
+        BM(IROW,3*I)  =BMTE(1)*T(2,3)
+        BM(IROW,3*J-2)=BMTE(2)*T(2,1)
+        BM(IROW,3*J-1)=BMTE(2)*T(2,2)
+        BM(IROW,3*J)  =BMTE(2)*T(2,3)
+        BM(IROW,3*K-2)=BMTE(3)*T(2,1)
+        BM(IROW,3*K-1)=BMTE(3)*T(2,2)
+        BM(IROW,3*K)  =BMTE(3)*T(2,3)
+      enddo    
+! 
+! Improper torsion / out of plane motion
+!
+      DO IJKL =1, NIMP
+        IROW = IROW+1
+        I=IMP(1,IJKL)
+        J=IMP(2,IJKL)
+        K=IMP(3,IJKL)
+        L=IMP(4,IJKL)
+        RJK1=X(K)-X(J)
+        RJK2=Y(K)-Y(J)
+        RJK3=Z(K)-Z(J)
+        RJL1=X(L)-X(J)
+        RJL2=Y(L)-Y(J)
+        RJL3=Z(L)-Z(J)
+        RJK=DIST(J,K,X,Y,Z,NATOM)
+        RJL=DIST(J,L,X,Y,Z,NATOM)
+        PKJL=ANGL(K,J,L,X,Y,Z,NATOM)
+        PIJL=ANGL(I,J,L,X,Y,Z,NATOM)
+        PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+        CKJL=COSE(PKJL)
+        SKJL=SINE(PKJL)
+        CIJL=COSE(PIJL)
+        CIJK=COSE(PIJK)
+! calculate theta
+        EJK(1)=RJK1/RJK
+        EJK(2)=RJK2/RJK
+        EJK(3)=RJK3/RJK
+        EJL(1)=RJL1/RJL
+        EJL(2)=RJL2/RJL
+        EJL(3)=RJL3/RJL
+        RJI = DIST(J,I,X,Y,Z,NATOM)
+        EJI(1)=(X(I)-X(J))/RJI
+        EJI(2)=(Y(I)-Y(J))/RJI
+        EJI(3)=(Z(I)-Z(J))/RJI
+        CALL XPROD(EJK,EJL,V) 
+        THETA = DACOS(V(1)*EJI(1)+V(2)*EJI(2)+V(3)*EJI(3))
+        CTHETA = COSE(THETA)
+        TTHETA = SINE(THETA)/COSE(THETA) 
+        BM(IROW,3*I-2) = (V(1)/(CTHETA*SKJL)-TTHETA*RJL1)/RJI
+        BM(IROW,3*I-1) = (V(2)/(CTHETA*SKJL)-TTHETA*RJL2)/RJI
+        BM(IROW,3*I)   = (V(3)/(CTHETA*SKJL)-TTHETA*RJL3)/RJI
+        BM(IROW,3*K-2) = (V(1)*(CKJL*CIJL-CKJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*K-1) = (V(2)*(CKJL*CIJL-CKJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*K)   = (V(3)*(CKJL*CIJL-CKJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*L-2) = (V(1)*(CKJL*CIJL-CIJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*L-1) = (V(2)*(CKJL*CIJL-CIJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*L)   = (V(3)*(CKJL*CIJL-CIJL)/(SKJL**3*CTHETA))/RJK 
+        BM(IROW,3*J-2) = -BM(IROW,3*I-2)-BM(IROW,3*K-2)-BM(IROW,3*L-2)
+        BM(IROW,3*J-1) = -BM(IROW,3*I-1)-BM(IROW,3*K-1)-BM(IROW,3*L-1)
+        BM(IROW,3*J)   = -BM(IROW,3*I)-BM(IROW,3*K)-BM(IROW,3*L)
+      ENDDO
+!
+!
+!  Torsion
+!
+      DO IJKL=1,NTO
+        IROW=IROW+1
+        I=ITO(1,IJKL)
+        J=ITO(2,IJKL)
+        K=ITO(3,IJKL)
+        L=ITO(4,IJKL)
+        RIJ1=X(J)-X(I)
+        RIJ2=Y(J)-Y(I)
+        RIJ3=Z(J)-Z(I)
+        RJK1=X(K)-X(J)
+        RJK2=Y(K)-Y(J)
+        RJK3=Z(K)-Z(J)
+        RKL1=X(L)-X(K)
+        RKL2=Y(L)-Y(K)
+        RKL3=Z(L)-Z(K)
+        RIJ=DIST(I,J,X,Y,Z,NATOM)
+        RJK=DIST(J,K,X,Y,Z,NATOM)
+        RKL=DIST(K,L,X,Y,Z,NATOM)
+        PIJK=ANGL(I,J,K,X,Y,Z,NATOM)
+        CIJK=COSE(PIJK)
+        SIJK=SINE(PIJK)
+        PJKL=ANGL(J,K,L,X,Y,Z,NATOM)
+        CJKL=COSE(PJKL)
+        SJKL=SINE(PJKL)
+        CIJKL=((-RIJ2*RJK1+RIJ1*RJK2)*(-RJK2*RKL1+RJK1*RKL2)+ 
+     &       (RIJ3*RJK1-RIJ1*RJK3)*(RJK3*RKL1-RJK1*RKL3)+     
+     &       (-RIJ3*RJK2+RIJ2*RJK3)*(-RJK3*RKL2+RJK2*RKL3))/  
+     &       (SIJK*SJKL*RIJ*RJK*RJK*RKL)
+        SIJKL=((-RIJ3*RJK2+RIJ2*RJK3)*RKL1+(RIJ3*RJK1-RIJ1*RJK3)*RKL2+   
+     &       (-(RIJ2*RJK1)+RIJ1*RJK2)*RKL3)/(RIJ*RJK*RKL*SIJK*SJKL)
+        BM(IROW,3*I-2)=SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ**2)+ 
+     &       CIJK*SIJKL*RJK1/(CIJKL*SIJK**2*RIJ*RJK)+     
+     &       (RJK3*RKL2-RJK2*RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*I-1)=SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ**2)+ 
+     &       CIJK*SIJKL*RJK2/(CIJKL*SIJK**2*RIJ*RJK)+    
+     &       (-RJK3*RKL1+RJK1*RKL3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*I)=SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ**2)+ 
+     & CIJK*SIJKL*RJK3/(CIJKL*SIJK**2*RIJ*RJK)+   
+     & (RJK2*RKL1-RJK1*RKL2)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*J-2)=-(SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ**2))+   
+     &    CIJK*SIJKL*(RIJ1-RJK1)/(CIJKL*SIJK**2*RIJ*RJK)-   
+     &    SIJKL*RJK1/(CIJKL*RJK**2)+SIJKL*RJK1/(CIJKL*SIJK**2*RJK**2)+   
+     &    SIJKL*RJK1/(CIJKL*SJKL**2*RJK**2)+   
+     &    CJKL*SIJKL*RKL1/(CIJKL*SJKL**2*RJK*RKL)+   
+     &    (-RIJ3*RKL2-RJK3*RKL2+RIJ2*RKL3+RJK2*RKL3)/   
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*J-1)=-SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ**2)+  
+     &    CIJK*SIJKL*(RIJ2-RJK2)/(CIJKL*SIJK**2*RIJ*RJK)-  
+     &    SIJKL*RJK2/(CIJKL*RJK**2)+SIJKL*RJK2/(CIJKL*SIJK**2*RJK**2)+  
+     &    SIJKL*RJK2/(CIJKL*SJKL**2*RJK**2)+ 
+     &    CJKL*SIJKL*RKL2/(CIJKL*SJKL**2*RJK*RKL)+  
+     &    (RIJ3*RKL1+RJK3*RKL1-RIJ1*RKL3-RJK1*RKL3)/   
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL) 
+        BM(IROW,3*J)=-SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ**2)+    
+     &    CIJK*SIJKL*(RIJ3-RJK3)/(CIJKL*SIJK**2*RIJ*RJK)-   
+     &    SIJKL*RJK3/(CIJKL*RJK**2)+SIJKL*RJK3/(CIJKL*SIJK**2*RJK**2)+  
+     &    SIJKL*RJK3/(CIJKL*SJKL**2*RJK**2)+   
+     &    (-RIJ2*RKL1-RJK2*RKL1+RIJ1*RKL2+RJK1*RKL2)/  
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+   
+     &    CJKL*SIJKL*RKL3/(CIJKL*SJKL**2*RJK*RKL)   
+        BM(IROW,3*K-2)=-CIJK*SIJKL*RIJ1/(CIJKL*SIJK**2*RIJ*RJK)+  
+     &    SIJKL*RJK1/(CIJKL*RJK**2)-SIJKL*RJK1/(CIJKL*SIJK**2*RJK**2)- 
+     &    SIJKL*RJK1/(CIJKL*SJKL**2*RJK**2)+  
+     &    CJKL*SIJKL*(RJK1-RKL1)/(CIJKL*SJKL**2*RJK*RKL)+  
+     &    SIJKL*RKL1/(CIJKL*SJKL**2*RKL**2)+  
+     &    (RIJ3*RJK2-RIJ2*RJK3+RIJ3*RKL2-RIJ2*RKL3)/  
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*K-1)=-CIJK*SIJKL*RIJ2/(CIJKL*SIJK**2*RIJ*RJK)+  
+     &    SIJKL*RJK2/(CIJKL*RJK**2)-SIJKL*RJK2/(CIJKL*SIJK**2*RJK**2)-  
+     &    SIJKL*RJK2/(CIJKL*SJKL**2*RJK**2)+  
+     &    CJKL*SIJKL*(RJK2-RKL2)/(CIJKL*SJKL**2*RJK*RKL)+  
+     &    SIJKL*RKL2/(CIJKL*SJKL**2*RKL**2)+  
+     &    (-RIJ3*RJK1+RIJ1*RJK3-RIJ3*RKL1+RIJ1*RKL3)/  
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)
+        BM(IROW,3*K)=-CIJK*SIJKL*RIJ3/(CIJKL*SIJK**2*RIJ*RJK)+  
+     &   SIJKL*RJK3/(CIJKL*RJK**2)-SIJKL*RJK3/(CIJKL*SIJK**2*RJK**2)-  
+     &   SIJKL*RJK3/(CIJKL*SJKL**2*RJK**2)+  
+     &   (RIJ2*RJK1-RIJ1*RJK2+RIJ2*RKL1-RIJ1*RKL2)/  
+     &   (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)+  
+     &   CJKL*SIJKL*(RJK3-RKL3)/(CIJKL*SJKL**2*RJK*RKL)+  
+     &   SIJKL*RKL3/(CIJKL*SJKL**2*RKL**2)
+        BM(IROW,3*L-2)=-CJKL*SIJKL*RJK1/(CIJKL*SJKL**2*RJK*RKL)+ 
+     &    (-RIJ3*RJK2+RIJ2*RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)- 
+     &    SIJKL*RKL1/(CIJKL*SJKL**2*RKL**2) 
+        BM(IROW,3*L-1)=-CJKL*SIJKL*RJK2/(CIJKL*SJKL**2*RJK*RKL)+  
+     &    (RIJ3*RJK1-RIJ1*RJK3)/(CIJKL*SIJK*SJKL*RIJ*RJK*RKL)- 
+     &    SIJKL*RKL2/(CIJKL*SJKL**2*RKL**2)
+        BM(IROW,3*L)=(-RIJ2*RJK1+RIJ1*RJK2)/  
+     &    (CIJKL*SIJK*SJKL*RIJ*RJK*RKL)-   
+     &    CJKL*SIJKL*RJK3/(CIJKL*SJKL**2*RJK*RKL)-  
+     &    SIJKL*RKL3/(CIJKL*SJKL**2*RKL**2)
+      enddo    
+      
+      END
+      

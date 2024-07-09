@@ -1,0 +1,40 @@
+C***********************************************************************
+C  DATE
+C***********************************************************************
+C
+      SUBROUTINE DATE (IDATE)
+C
+C     VERSION FOR COMPAQ WORKSTASIONS
+C
+      IMPLICIT REAL*8 (A-H,O-Z)
+      CHARACTER*24 IDATE
+C                   
+      CALL FDATE(IDATE)
+C
+      RETURN
+      END
+C
+C***********************************************************************
+C  DATTIM
+C***********************************************************************
+C
+      SUBROUTINE DATTIM (IO)
+C
+C     VERSION FOR COMPAQ WORKSTASIONS
+C     WRITE DATE AND TIME TO DEVICE IO
+C     CALLED BY:
+C                MAIN,FINOUT,RESTOR,RPHSET,TABLE
+C
+      IMPLICIT REAL*8 (A-H,O-Z)
+      CHARACTER*24 TODAY
+C                   
+      CALL DATE(TODAY)
+C
+      WRITE(IO,1000) TODAY
+C
+ 1000 FORMAT(1X,A)
+C
+      RETURN
+C
+      END
+C

@@ -1,0 +1,29 @@
+#!/bin/csh -f
+# 
+# Usage:  clean_up.jc
+#
+# C shell script to remove all generated files from the test suite
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun
+#
+cd $wrkdir
+#
+rm *.chk
+rm *.time
+#
+rm ./*/*.fu6
+rm */*.fu1
+rm */*.fu14
+rm */*.fu15
+rm */*.fu22
+rm */*.fu48
+rm */*.fu61
+rm */*.time
+rm oh3/oh3tr7.fu30
+rm oh3/oh3tr9.fu31
+rm oh3/RWMD*
+rm -rf ch3/ch3
+#
+echo 'test suite cleaned'
+

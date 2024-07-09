@@ -1,0 +1,12 @@
+#!/bin/csh
+set dir = `pwd`
+cd $dir
+cd ..
+cp $dir/.listchange .
+foreach i (`cat .listchange`)
+  echo $i
+  chmod +x $i
+end
+rm -f .listchange
+
+

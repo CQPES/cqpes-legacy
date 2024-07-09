@@ -1,0 +1,36 @@
+#BasicInfo
+numbTrxn 3           
+Trxnlist             
+    298.15
+    300.
+    400.
+numbP  4          
+unitP lg10atm            
+Plist                
+3.
+-0.5
+-0.75
+-3.
+#Collision
+ColliIntg    Troe           
+avgEtrans 92 cm**-1  0. all   
+FE      1.15              
+paramPstar   6.00  410.0  93.0     
+paramBath    2.93  38.0  2.0 
+#FalloffMethod
+Method  QRRK     
+Rxn2   NO       
+rxn1    rate       
+2.7165E-14
+2.8101E-14
+1.3146E-13
+#QRRKData              
+sPstar       42.            
+GeoMeFreq    1085.669208    
+MaxE         8000.          
+rxnneg1AEa             
+1.5444E+13		29.78
+1.5961E+13		29.8
+2.9953E+13		30.25
+#END         
+

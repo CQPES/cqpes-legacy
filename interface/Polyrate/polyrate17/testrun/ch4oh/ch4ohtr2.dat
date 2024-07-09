@@ -1,0 +1,169 @@
+*General 
+  TITLE
+  CH4 + OH -> CH3 + H2O; zero-order IVTST calculations
+  END
+
+  ATOMS
+    1    H 
+    2    C 
+    3    H
+    4    H 
+    5    H  
+    6    O
+    7    H
+  END
+    
+  NOSUPERMOL
+
+  IVTST0
+
+# end of general section
+
+*ENERGETICS
+   POTENTIAL    unit29
+
+*REACT1
+
+  GEOM
+  1   0.694459    1.724309   -0.853564
+  2  -0.000002    0.000000   -0.000002
+  3   0.909314   -1.608988   -0.876580
+  4   0.419539    0.013218    2.001971
+  5  -2.023287   -0.128537   -0.271809
+  END
+ 
+  ELEC
+    1   0.0
+  END
+
+  SPECIES  NONLINRP
+
+# end of react1 section
+
+
+*REACT2
+
+  GEOM
+   6  0.000000    0.000000    0.108591
+   7  0.000000    0.000000   -1.723409
+  END
+
+  ELEC
+    2   0.0
+    2   0.0006379
+  END
+
+  SPECIES  LINRP
+
+# end of react2 section
+ 
+
+*PROD1
+
+
+  GEOM
+   2   0.000000    0.000000    0.000000
+   1   0.000000    2.023605    0.000000
+   3   1.752493   -1.011803    0.000000
+   4  -1.752493   -1.011803    0.000000
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  NONLINRP
+
+# end of prod1 section
+
+*PROD2
+
+  GEOM
+   6 0.000000    0.000000    0.125940
+   5 0.000000    1.424272   -0.999378
+   7 0.000000   -1.424272   -0.999378
+  END
+
+  ELEC
+    1   0.0
+  END
+
+  SPECIES  NONLINRP
+
+# end of prod2 section
+
+*START
+
+  GEOM
+   1  -2.789094    2.069638   -0.000017
+   2  -2.433391    0.059489    0.000000
+   3  -0.206287   -0.257188   -0.000002
+   4  -3.112470   -0.844478   -1.699802
+   5  -3.112460   -0.844446    1.699822
+   6   2.254963   -0.157560    0.000000
+   7   2.406424    1.668737   -0.000002
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  NONLINTS
+
+# end of start section
+
+*PATH
+   SCALEMASS   8.2514
+   SSTEP       0.005
+   INH         4    
+   COORD       cart
+   SRANGE 
+     slp       2.0
+     slm      -2.0
+   END
+
+*TUNNEL
+
+  ZCT
+  NOSCT
+
+  QUAD 
+    nqe        30
+    nqth       30
+  END
+
+  # end of tunnel section
+
+*RATE
+
+  FORWARDK
+  SIGMAF       12
+  SIGMAR       12
+  TST
+  CVT
+  GSPEC
+    SMAX  0.20
+    SMIN -0.07
+  END
+
+  TEMP
+    200.
+    223.
+    233.
+    250.
+    273.
+    293.
+    298.
+    300.
+    350.
+    353.
+    400.
+    416.
+    500.
+    600.
+    800.
+   1000.
+   1500.
+   2000.
+   2400.
+  END

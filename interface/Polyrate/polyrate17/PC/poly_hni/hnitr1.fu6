@@ -1,0 +1,1937 @@
+
+********************************************************************************
+
+   POLYRATE version 9.3 (August, 2003)
+
+   Jose C. Corchado, Yao-Yuan Chuang, Patton L. Fast,
+   Jordi Villa, Wei-Ping Hu, Yi-Ping Liu,
+   Gillian C. Lynch, Kiet A. Nguyen, Charles F. Jackels,
+   Vasilios S. Melissas, Benjamin J. Lynch, Ivan Rossi,
+   Elena L. Coitino, Antonio Fernandez Ramos, 
+   Jingzhi Pu, and Titus V. Albu
+   Department of Chemistry and Supercomputer Institute
+   University of Minnesota, Minneapolis, Minnesota
+
+   Rozeanne Steckler
+   San Diego Supercomputer Center, La Jolla, California
+
+   Bruce C. Garrett
+   Environmental Molecular Sciences Laboratory
+   Pacific Northwest Laboratory, Richland, Washington
+
+   Alan D. Isaacson
+   Department of Chemistry, Miami University, Oxford, Ohio
+
+   and Donald G. Truhlar
+   Department of Chemistry and Supercomputer Institute
+   University of Minnesota, Minneapolis, Minnesota
+
+   A program for the analysis of reactants, products, transition states, and
+   generalized transition states, and for the calculation of variational
+   transition state theory rate constants and multidimensional semiclassical
+   tunneling probabilities, including direct dynamics.
+
+
+   Copyright 1988-2003
+   Donald G. Truhlar and Regents of the University of Minnesota
+
+********************************************************************************
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+   10-Nov-2003                                                       12:12:39
+ H/NI (100) Rigid Surface: EDIM POT  surface diffusion; Test run hnitr1         
+
+
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   General Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  SUPERMOLECULE mode:                                                  supermol
+  GEOMUNIT: Units for fu5 input geometries:                                a.u.
+
+  Atomic information:
+            Atom     Atomic number    Atomic Symbol     Mass (amu)
+
+              1            1               H             1.000000
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   ENERGETICS Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  Potential and first derivative type: hooks   
+  Zero of energy: calculate
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   SECOND Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  Second derivatives are computed using the methods in: ghook   
+    FPRINT: print normal mode information                       on 
+
+
+  ** Switches:
+
+
+
+  ** Second Derivative Parameters:
+
+    NUMSTEP:  second derivative step size for frequencies   .001500  bohrs
+    NUMTYP:  method for computing second derivative       central  
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   OPTIMIZATION Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  Geometry optimizations are computed using themethods in: polyrate
+
+
+  ** Switches:
+
+    PRINT:  print derivatives after each newton step            on 
+    BFGS:   update the Hessian using the BFGS method            on 
+    TSBFGS: update the Hessian using the BFGS method (TS)       off
+    SDSTART: start with unit Hessian (steepest descent)         on 
+    RETRY:  try Newton step if quasi-Newton stalls              off
+
+
+  ** Geometry Optimization Parameters:
+
+    DLX2:  second derivative step size for optimization     .001500 bohrs
+    GCOMP:  Max. gradient component threshold           .100000E-04 hartree/bohr
+    TSGCOMP: Max. gradient component threshold (TS)     .100000E-04 hartree/bohr
+    NITER:  number of iterations in geom opt                     50
+    SCALE:  maximum component of Newton step                .200000
+    STPTOL: fail if max. component of Newton step less than .000010 bohrs
+    HREC:   iterations between Hessian calculations              10
+    TSHREC: iterations between Hessian calculations (TS)          5
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   Reactant #1 Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Switches:
+
+    STATUS: status of input info                                0
+    FREQ:  normal mode analysis                                 on 
+    HARMONIC:  harmonic approximation                           on 
+    PROJECT:  project overall trans. and rot.                   off
+    SPECIES:  species type                                     ssrp    
+    INITGEO:  initial geometry taken from                       geom 
+    PRMODE:  print eigenvectors in Xmol form                    off
+
+
+  ** Geometry (a.u.):
+
+   Atom Number    Atomic Symbol         X               Y               Z
+       1                H            .00000000       3.32600000        .95000000
+
+
+  ** All coordinates are optimized
+
+  ** Electronic energies:
+  Degeneracy  Energy (hartrees)
+      2             .0000
+      0             .0000
+      0             .0000
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   Product #1 Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Switches:
+
+    STATUS: status of input info                                0
+    FREQ:  normal mode analysis                                 on 
+    HARMONIC:  harmonic approximation                           on 
+    PROJECT:  project overall trans. and rot.                   off
+    SPECIES:  species type                                     ssrp    
+    INITGEO:  initial geometry taken from                       geom 
+    PRMODE:  print eigenvectors in Xmol form                    off
+
+
+  ** Geometry (a.u.):
+
+   Atom Number    Atomic Symbol         X               Y               Z
+       1                H           3.32600000        .00000000        .95000000
+
+
+  ** All coordinates are optimized
+
+  ** Electronic energies:
+  Degeneracy  Energy (hartrees)
+      2             .0000
+      0             .0000
+      0             .0000
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   Starting point Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Switches:
+
+    STATUS: status of input info                                0
+    FREQ:  normal mode analysis                                 on 
+    HARMONIC:  harmonic approximation                           on 
+    PROJECT:  project overall trans. and rot.                   off
+    SPECIES:  species type                                     ssts    
+    INITGEO:  initial geometry taken from                       geom 
+    PRMODE:  print eigenvectors in Xmol form                    off
+
+
+  ** Geometry (a.u.):
+
+   Atom Number    Atomic Symbol         X               Y               Z
+       1                H           1.66500000       1.66500000       1.75046000
+
+
+  ** All coordinates are optimized
+
+  ** Electronic energies:
+  Degeneracy  Energy (hartrees)
+      2             .0000
+      0             .0000
+      0             .0000
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   PATH Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Switches:
+
+    SADDLE:  the reaction has a saddle point                     yes
+    NEXTPT:  compute only next point on path                     off
+    ESD:  use Euler integrator                                   on 
+    EXFIRST:  extrapolate into reactant region                   off
+    EXSECOND:  extrapolate into product region                   off
+    PRINTSTEP:  print geom, v, and grad at each step             off
+    HESS:  compute the Hessians along the MEP                    on 
+    CALCMEFF:  calculate effective reduced mass along MEP        off
+    REORDER:  reordering frequencies along the MEP               off
+    RODS:  re-orient the dividing surface                        off
+    IVTST0FREQ:  low frequency mode by IVTST-0                   off
+    BATH:  solvent approximaton                                  off
+    CARTRP:  vib. analysis in cartesian for RP                   on 
+
+
+  ** Reaction Path Parameters:
+
+    SCALEMASS: mass to which coordinates are scaled                1.000000 amu
+    SSTEP:  step size in mass scaled amu                            .000100 bohr
+    NSTEPS:  maximum number of steps                                 99999
+    FIRSTSTEP: method for determining first step                   nmode
+    IDIRECT: initial direction off of saddle pt.                   1
+    SIGN: unbound eignevector points toward the                    product
+    CURV:  method for computing curvature                          dgrad  
+    COORD: method for computing bound vibrations                   cart 
+    VSCALE:  scale factor for MEP                                  1.000000
+    SPRNT:  RPH information is printed if abs(s) >                  .000000
+    POTINF:  number of pieces of info. printed from PES            0
+    DLX3:  step size for numerical 3rd derivatives                  .000100 bohr
+    INTMU: interpolation of mueffective at saddle point            1
+    INI: interval of gradient step for interpolation               1
+    PRDISTMX:  print interatomic distance matrices in every    20 save-grids.
+    PRSAVERP:  print save point information in every         9999 save-grids.
+    PRSAVEMODE:  print save point information + n.m.  every  9999 save-grids.
+
+
+  ** Reaction path is computed for the interval
+     -2.300000 bohrs < = s < =  2.300000 bohrs
+
+  ** Generalized normal mode analysis will be carried out at the following
+     s values in addition to the s values in the save grid:
+
+     None
+
+  ** Euler method is used to compute the reaction path
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   TUNNEL Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Tunneling method:
+
+    WIGNER:  compute Wigner tunneling                     on 
+    ZCT:  compute zero curvature tunneling                on 
+    SCT:  compute small curvature tunneling               on 
+
+
+  ** Tunneling Parameters:
+
+    NQE,NQTH: quadrature parameters for tunneling calcs.        30     30
+    NSEGBOLTZ:  number of segments for Boltzmann integral       1
+    NSEGTHETA:  number of segments for theta integral           1
+    EMIN:  max. energy in % tunneling                            middle
+    SPLINE:  spline fit for interpolating effective mass
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+   RATE Section Parameters: 
+
+--------------------------------------------------------------------------------
+
+  ** Switches:
+
+    FORWARDK:  compute forward rates                                     on 
+    BOTHK:  compute forward and reverse rates                            on 
+    EDGEOK:  cont. calc. even if max VAG or DELG is near edge of grid    on 
+    PRDELG:  print free energy curve                                     off
+    PRGIGT:  print improved generalized free energy curve                off
+    GTLOG:  use logarithms for calculating free energy curve             off
+
+
+  ** Transition State Theory Methods:
+
+    TST:  conventional transition state theory          yes
+    CVT:  canonical VTST                                yes
+    CUS:  canonical unified statistical calculations    no 
+    ICVT:  improved canonical VTST                      no 
+    muVT:  microcanonical VTST                          no 
+    US:  unifed statistical calculations                no 
+
+
+  ** Rate Calculation Parameters:
+
+    REVKEXP: scale reverse rate by this power of ten           0
+    SIGMAF:  number of ways of forming forward GTS             1.
+    SIGMAR:  number of ways of forming reverse GTS             1.
+    STATE:  thermal or state-selected rate                    therm
+
+  ** Temperatures (K):
+
+       80.0000
+      100.0000
+      140.0000
+      200.0000
+      211.0000
+      223.0000
+      236.0000
+      243.0000
+      249.0000
+      263.0000
+      283.0000
+      300.0000
+      350.0000
+      400.0000
+      500.0000
+      600.0000
+      800.0000
+     1000.0000
+
+
+  ** Temperatures pairs for activation energies:
+
+       80.0000     140.0000
+      140.0000     200.0000
+      211.0000     263.0000
+      223.0000     283.0000
+      300.0000     400.0000
+      500.0000     800.0000
+
+
+  ** Free energy profile is computed for the full reaction path
+
+
+  ** Reactant and Product partition functions are scaled by: 10**  0
+
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+     Cartesian coordinates will be used for bound mode vibrations.
+ *******************************************************************************
+
+ ******************************************************************************
+
+ Potential data from file 4:
+
+    SETUP has been called for the EDIM potential version 5
+
+    Number of covalent atoms=                        1
+    Number of metal atoms in primary zone=           0
+    Number of metal atoms in secondary zone=       122
+    Total number of atoms in primary zone=           1
+    Total number of metal atoms=                   122
+    Total number of atoms=                         123
+    Number of cov-cov and cov-met bonds=             1
+
+    Covalent-covalent Morse parameters
+    Atom type     D              Alf            Req            Sato
+         2    2  1.7443300E-01  1.0443500E+00  1.4020000E+00  1.3000000E-01
+         3    2  1.7443300E-01  1.0443500E+00  1.4020000E+00  1.3000000E-01
+         3    3  1.7443300E-01  1.0443500E+00  1.4020000E+00  1.3000000E-01
+
+    Parameters defining cov-met triplet interaction
+      Atom     Parameters
+         2  3.2000000E+01  5.5000000E-02  8.0000000E-01
+         3  3.2000000E+01  5.5000000E-02  8.0000000E-01
+
+    Effective number of s electrons for metal
+      Atom     Bulk           Surface
+         1  2.0000000E+00  2.0000000E+00
+
+    Effective number of s electrons for covalent atoms
+      Atom
+         2  1.0000000E+00
+         3  2.0000000E+00
+
+     Parameters for embedding function for atom 3:
+    F1 =    -1.6400000E+02             F2 =     1.0980000E+03
+
+    Parameters for pair repulsion terms
+      Atom     Z0             Beta           Alpha
+         1  1.0000000E+01  8.9570000E-01  1.8633000E+00
+         2  1.9590000E-01  3.2108000E+00  1.7957000E+00
+         3  3.7090000E-01  0.0000000E+00  8.2450000E-01
+
+    Parameters for switching function
+      Atom     RCUT1           RCUT2
+         1  5.0000000E+00  1.0000000E+01
+         2  5.0000000E+00  1.0000000E+01
+         3  5.0000000E+00  1.0000000E+01
+
+    Zero of energy = 2.6432602000E+01 Hartree
+    For primary zone, ITYPE =   2
+
+ ******************************************************************************
+
+
+ ********** Reactants:
+
+ Initial guess for geometry of reactants in space-fixed cartesians (bohrs):
+
+                 X               Y               Z
+   1        0.000000E+00    3.326000E+00    9.500000E-01
+
+
+ ********************************* Reactant 1 *********************************
+
+      For IOP =  1:
+      Species is a  1-atom(s) in field and made up of atoms:   1
+ Electronic degeneracies and energies (a.u.) =   2     .00000000
+                                                 0     .00000000
+                                                 0     .00000000
+
+ Anharmonicity for mode(i) is:   0  0  0
+      For IOP = 1     NDIM =  3     IND =  1  2  3
+
+ Search has converged after    1 iterations
+
+ Final geometry and derivatives in unscaled cartesians (a.u.)
+
+ Atom           X               Y               Z
+
+   1        5.998134E-18    3.325959E+00    1.022852E+00
+
+ Atom           DX              DY              DZ
+
+   1       -2.597924E-19    3.196852E-07   -1.491116E-09
+
+  V =   3.77859676E-06 hartrees  (       .00237111 kcal/mol)
+
+
+ ---------------------------------------------------------------------------
+                  Vibrational ground-state energies 
+ ---------------------------------------------------------------------------
+  mode            hartrees        eV           cm**-1         kcal
+
+    1            1.7611E-03       .0479        386.52        1.1051
+    2            1.1946E-03       .0325        262.19         .7496
+    3            1.1946E-03       .0325        262.19         .7496
+
+  Total ZPE      4.1504E-03       .1129        910.90        2.6044
+ ---------------------------------------------------------------------------
+
+ Frequencies and normalized eigenvector components 
+ in mass-scaled space-fixed cartesian coordinates
+
+ Mode                  1                             2
+ omega (cm**-1)     773.03                        524.38  
+
+ Atom        X        Y        Z           X        Y        Z
+   1        .000     .000    1.000       1.000     .000     .000
+
+ Mode                  3
+ omega (cm**-1)     524.38  
+
+ Atom        X        Y        Z
+   1        .000    1.000     .000
+
+
+ ------------------------------------------------------------------------------
+                        Harmonic Frequencies
+ ------------------------------------------------------------------------------
+                a.u.            eV          cm**-1         kcal
+
+  Mode   1      .0035222       .0958         773.03        2.2102  
+  Mode   2      .0023893       .0650         524.38        1.4993  
+  Mode   3      .0023892       .0650         524.38        1.4993  
+ ------------------------------------------------------------------------------
+
+
+ ********** Products:
+
+ Initial guess for geometry of products in space-fixed cartesians (bohrs):
+
+                 X               Y               Z
+   1        3.326000E+00    0.000000E+00    9.500000E-01
+
+
+ ********************************* Product 1 **********************************
+
+      For IOP =  3:
+      Species is a  1-atom(s) in field and made up of atoms:   1
+ Electronic degeneracies and energies (a.u.) =   2     .00000000
+                                                 0     .00000000
+                                                 0     .00000000
+
+ Anharmonicity for mode(i) is:   0  0  0
+      For IOP = 3     NDIM =  3     IND =  1  2  3
+
+ Search has converged after    1 iterations
+
+ Final geometry and derivatives in unscaled cartesians (a.u.)
+
+ Atom           X               Y               Z
+
+   1        3.325959E+00   -1.247281E-16    1.022852E+00
+
+ Atom           DX              DY              DZ
+
+   1        3.196852E-07   -9.267782E-19   -1.469533E-09
+
+  V =   3.77859677E-06 hartrees  (       .00237111 kcal/mol)
+
+
+ ---------------------------------------------------------------------------
+                  Vibrational ground-state energies 
+ ---------------------------------------------------------------------------
+  mode            hartrees        eV           cm**-1         kcal
+
+    1            1.7611E-03       .0479        386.52        1.1051
+    2            1.1946E-03       .0325        262.19         .7496
+    3            1.1946E-03       .0325        262.19         .7496
+
+  Total ZPE      4.1504E-03       .1129        910.90        2.6044
+ ---------------------------------------------------------------------------
+
+ Frequencies and normalized eigenvector components 
+ in mass-scaled space-fixed cartesian coordinates
+
+ Mode                  1                             2
+ omega (cm**-1)     773.03                        524.38  
+
+ Atom        X        Y        Z           X        Y        Z
+   1        .000     .000    1.000        .000    1.000     .000
+
+ Mode                  3
+ omega (cm**-1)     524.38  
+
+ Atom        X        Y        Z
+   1       1.000     .000     .000
+
+
+ ------------------------------------------------------------------------------
+                        Harmonic Frequencies
+ ------------------------------------------------------------------------------
+                a.u.            eV          cm**-1         kcal
+
+  Mode   1      .0035222       .0958         773.03        2.2102  
+  Mode   2      .0023893       .0650         524.38        1.4993  
+  Mode   3      .0023892       .0650         524.38        1.4993  
+ ------------------------------------------------------------------------------
+
+
+ In this table Ve denotes the potential energy at classical equilibrium,
+ i.e., the energy of an optimized reactant or product. 
+ Further, E^G denotes the ground-state energy, i.e., E^G = Ve + ZPE.
+
+--------------------------------------------------------------------------------
+                                       Reaction energetics
+--------------------------------------------------------------------------------
+                    Reactant Ve    Reactant E^G       Product Ve     Product E^G
+--------------------------------------------------------------------------------
+                                              kcal/mol
+ w/re reactants Ve        .0000         2.6044            .0000         2.6044
+ w/re reactants E^G     -2.6044          .0000          -2.6044          .0000
+ w/re products Ve         .0000         2.6044            .0000         2.6044
+ w/re products E^G      -2.6044          .0000          -2.6044          .0000
+                                                 eV
+ w/re reactants Ve        .0000          .1129            .0000          .1129
+ w/re reactants E^G      -.1129          .0000           -.1129          .0000
+ w/re products Ve         .0000          .1129            .0000          .1129
+ w/re products E^G       -.1129          .0000           -.1129          .0000
+                                     hartree atomic units (a.u.)
+ w/re reactants Ve     .0000000       .0041504         .0000000       .0041504
+ w/re reactants E^G   -.0041504       .0000000        -.0041504       .0000000
+ w/re products Ve      .0000000       .0041504         .0000000       .0041504
+ w/re products E^G    -.0041504       .0000000        -.0041504       .0000000
+                                               cm**-1
+ w/re reactants Ve           .0          910.9               .0          910.9
+ w/re reactants E^G      -910.9             .0           -910.9             .0
+ w/re products Ve            .0          910.9               .0          910.9
+ w/re products E^G       -910.9             .0           -910.9             .0
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+                                 Zero of energy 
+--------------------------------------------------------------------------------
+
+          EZER0 =        3.77860E-06 hartree atomic units (a.u.)
+                         1.02822E-04 eV
+                         8.29306E-01 cm**-1
+                         2.37111E-03 kcal/mol
+
+--------------------------------------------------------------------------------
+
+
+ ********* Saddle point:
+
+      Initial saddle point geometry in space-fixed cartesians (bohrs)
+
+               X             Y             Z
+         1.665000000   1.665000000   1.750460000
+
+
+ ******************************** Saddle point ********************************
+
+ Electronic degeneracies and energies (a.u.) =    2     .00000000
+                                                  0     .00000000
+                                                  0     .00000000
+      For IOP = 5     NDIM =  3     IND =  1  2  3
+
+ Energy (a.u.), geometry (unscaled a.u.) and gradient at each
+ optimization iteration
+
+ Step          V        IND         X              DX
+ --------------------------------------------------------------------
+   1    6.54119003E-03  1     1.66353906E+00  4.52398809E-06
+                        2      .16635391E+01   .45239881E-05
+                        3      .17950362E+01  -.24198012E-04
+Hessian kept frozen
+
+ Search has converged after    2 iterations
+
+ Final geometry and derivatives in unscaled cartesians (a.u.)
+
+ Atom           X               Y               Z
+
+   1        1.663120E+00    1.663120E+00    1.795418E+00
+
+ Atom           DX              DY              DZ
+
+   1        1.248631E-06    1.248631E-06   -5.239367E-07
+
+  V =   6.54118290E-03 hartrees  (      4.10465441 kcal/mol)
+
+ At s =    .00000 bohr
+
+
+ ---------------------------------------------------------------------------
+                  Vibrational ground-state energies 
+ ---------------------------------------------------------------------------
+  mode            hartrees        eV           cm**-1         kcal
+
+    1            2.9160E-03       .0793        639.99        1.8298
+    2            1.0338E-03       .0281        226.90         .6487
+
+  Total ZPE      3.9498E-03       .1075        866.89        2.4786
+ ---------------------------------------------------------------------------
+
+
+ ------------------------------------------------------------------------------
+                        Harmonic Frequencies
+ ------------------------------------------------------------------------------
+                a.u.            eV          cm**-1         kcal
+
+  Mode   1      .0058320       .1587        1279.98        3.6596  
+  Mode   2      .0020676       .0563         453.79        1.2975  
+  Mode   3      .0013365 i     .0364 i       293.34 i       .8387 i
+ ------------------------------------------------------------------------------
+
+ Frequencies and normalized eigenvector components 
+ in mass-scaled space-fixed cartesian coordinates
+
+ Mode                  1                             2
+ omega (cm**-1)    1279.98                        453.79  
+
+ Atom        X        Y        Z           X        Y        Z
+   1        .000     .000    1.000        .707     .707     .000
+
+ Mode                  3
+ omega (cm**-1)     293.34 i
+
+ Atom        X        Y        Z
+   1        .707    -.707     .000
+
+
+------------------------------------------------------------------------------
+  Saddle point energetics (V = classical energy, ZPE = zero point energy)
+------------------------------------------------------------------------------
+                                hartrees        eV        cm**-1       kcal
+  V w/re reactants V              .00654      .17800     1435.62      4.1047
+  V w/re product V                .00654      .17800     1435.62      4.1047
+  V+ZPE w/re reactant V           .01049      .28548     2302.51      6.5832
+  V+ZPE w/re product V            .01049      .28548     2302.51      6.5832
+  V+ZPE w/re reactant V+ZPE       .00634      .17254     1391.61      3.9788
+  V+ZPE w/re product V+ZPE        .00634      .17254     1391.61      3.9788
+  V+ZPE w/re saddle point V       .00395      .10748      866.89      2.4786
+------------------------------------------------------------------------------
+
+
+
+ ******************************************************************************
+ After this, all energies are given w/re to classical
+ reactants and output is in a.u. unless stated otherwise.
+ ******************************************************************************
+
+
+ ******************************** Reaction path ********************************
+
+  All s values and step sizes are in mass-scaled bohrs.
+
+  For the path of steepest descent:
+      Max no. of steps in each direction =   99999
+      Hessian grid multiple (INH) =   200
+      Path stopped if s >   2.300000 or s <  -2.300000
+
+  The direction of the unbound eigenvector at the saddle point 
+  is toward the product side.
+
+  The initial step is in the direction of positive s.
+
+  Use fixed-step Euler integrator with no stabilization
+
+  For the first     0 steps,   DEL1  =  1.00000E-05
+  and for the remaining steps, DEL   =  1.00000E-04
+
+  Extra mode information is printed between s =    .0000 and    .0000
+
+  Note: ZPE of imaginary frequencies will be set to
+        zero when using the harmonic approximation.
+
+ ********************* Detailed reaction path information *********************
+
+                       (s in mass-scaled bohrs)
+                       (V in hartrees)
+                       (X,Y,Z in unscaled bohrs)
+                       (DX,DY,DZ in unscaled hartree/bohr)
+
+   INTERATOMIC DISTANCES IN BOHR @ S =    .04000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =    .44000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =    .84000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   1.24000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   1.64000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   2.04000 bohr
+
+            1
+   1   .000000D+00
+
+ For direction  1
+     number of integration steps was    23000
+     number of function calls was       23000
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   -.10000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   -.50000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =   -.90000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =  -1.30000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =  -1.70000 bohr
+
+            1
+   1   .000000D+00
+
+   INTERATOMIC DISTANCES IN BOHR @ S =  -2.10000 bohr
+
+            1
+   1   .000000D+00
+
+ For direction  2
+     number of integration steps was    23000
+     number of function calls was       23000
+
+    Classical and adiabatic energies (kcal/mol), effective CD-SC reduced 
+    mass (mu) (a.u.), and frequencies (cm**-1) vs. s
+ s(bohr)     VMEP     Va^G    mu^CD-SC   frequencies (cm**-1)
+
+  -2.300     .1271    2.0215  1106.53   820   506 
+  -2.280     .1523    2.0543  1184.35   827   504 
+  -2.260     .1794    2.0894  1252.76   834   502 
+  -2.240     .2084    2.1266  1313.00   842   500 
+  -2.220     .2392    2.1658  1366.32   850   498 
+  -2.200     .2717    2.2070  1413.78   857   497 
+  -2.180     .3058    2.2499  1456.25   865   495 
+  -2.160     .3414    2.2945  1494.48   873   493 
+  -2.140     .3785    2.3407  1529.08   881   492 
+  -2.120     .4170    2.3885  1560.56   888   491 
+  -2.100     .4568    2.4376  1589.34   896   490 
+  -2.080     .4978    2.4880  1615.78   904   488 
+  -2.060     .5399    2.5396  1640.19   912   487 
+  -2.040     .5832    2.5924  1662.83   919   486 
+  -2.020     .6274    2.6462  1683.91   927   485 
+  -2.000     .6726    2.7010  1703.61   934   484 
+  -1.980     .7187    2.7567  1722.10   942   484 
+  -1.960     .7656    2.8132  1739.51   950   483 
+  -1.940     .8132    2.8704  1755.96   957   482 
+  -1.920     .8616    2.9283  1771.55   964   481 
+  -1.900     .9105    2.9868  1786.36   972   481 
+  -1.880     .9601    3.0459  1800.48   979   480 
+  -1.860    1.0101    3.1054  1813.98   986   480 
+  -1.840    1.0607    3.1654  1822.84   993   479 
+  -1.820    1.1116    3.2257  1819.90  1000   478 
+  -1.800    1.1629    3.2863  1807.49  1007   478 
+  -1.780    1.2145    3.3471  1795.61  1014   478 
+  -1.760    1.2664    3.4082  1784.21  1021   477 
+  -1.740    1.3185    3.4693  1773.26  1028   477 
+  -1.720    1.3708    3.5306  1762.70  1034   476 
+  -1.700    1.4232    3.5918  1752.53  1041   476 
+  -1.680    1.4758    3.6531  1742.71  1047   476 
+  -1.660    1.5283    3.7143  1733.21  1054   475 
+  -1.640    1.5809    3.7754  1724.02  1060   475 
+  -1.620    1.6335    3.8364  1715.11  1066   475 
+  -1.600    1.6860    3.8972  1706.47  1072   474 
+  -1.580    1.7384    3.9578  1698.08  1078   474 
+  -1.560    1.7907    4.0181  1689.94  1084   474 
+  -1.540    1.8429    4.0781  1682.01  1090   474 
+  -1.520    1.8948    4.1378  1674.31  1096   473 
+  -1.500    1.9466    4.1972  1666.80  1101   473 
+  -1.480    1.9981    4.2562  1659.49  1107   473 
+  -1.460    2.0493    4.3147  1652.37  1112   472 
+  -1.440    2.1002    4.3729  1645.42  1118   472 
+  -1.420    2.1508    4.4305  1638.65  1123   472 
+  -1.400    2.2011    4.4877  1632.03  1128   472 
+  -1.380    2.2510    4.5443  1625.58  1133   471 
+  -1.360    2.3004    4.6004  1619.27  1138   471 
+  -1.340    2.3495    4.6560  1613.11  1143   471 
+  -1.320    2.3982    4.7109  1607.09  1147   470 
+  -1.300    2.4463    4.7653  1601.21  1152   470 
+  -1.280    2.4940    4.8190  1595.46  1157   470 
+  -1.260    2.5413    4.8721  1589.84  1161   469 
+  -1.240    2.5879    4.9246  1584.34  1165   469 
+  -1.220    2.6341    4.9763  1578.97  1170   469 
+  -1.200    2.6797    5.0274  1573.71  1174   468 
+  -1.180    2.7248    5.0778  1568.57  1178   468 
+  -1.160    2.7693    5.1275  1563.55  1182   468 
+  -1.140    2.8132    5.1764  1558.63  1186   468 
+  -1.120    2.8565    5.2246  1553.82  1189   467 
+  -1.100    2.8992    5.2720  1549.12  1193   467 
+  -1.080    2.9413    5.3187  1544.52  1197   467 
+  -1.060    2.9827    5.3646  1540.02  1200   466 
+  -1.040    3.0235    5.4098  1535.63  1203   466 
+  -1.020    3.0636    5.4541  1531.33  1207   466 
+  -1.000    3.1031    5.4977  1527.13  1210   465 
+   -.980    3.1418    5.5404  1523.02  1213   465 
+   -.960    3.1799    5.5823  1519.01  1216   464 
+   -.940    3.2173    5.6234  1515.09  1219   464 
+   -.920    3.2540    5.6637  1511.27  1222   464 
+   -.900    3.2900    5.7032  1507.53  1225   463 
+   -.880    3.3252    5.7418  1503.89  1227   463 
+   -.860    3.3598    5.7796  1500.33  1230   463 
+   -.840    3.3936    5.8165  1496.86  1232   462 
+   -.820    3.4266    5.8526  1493.48  1235   462 
+   -.800    3.4589    5.8878  1490.19  1237   462 
+   -.780    3.4905    5.9222  1486.98  1240   461 
+   -.760    3.5213    5.9557  1483.86  1242   461 
+   -.740    3.5513    5.9883  1480.82  1244   461 
+   -.720    3.5806    6.0201  1477.87  1246   460 
+   -.700    3.6092    6.0510  1475.00  1248   460 
+   -.680    3.6369    6.0811  1472.21  1250   460 
+   -.660    3.6639    6.1103  1469.51  1252   459 
+   -.640    3.6901    6.1386  1466.88  1254   459 
+   -.620    3.7155    6.1660  1464.35  1255   459 
+   -.600    3.7401    6.1926  1461.89  1257   459 
+   -.580    3.7639    6.2183  1459.51  1259   458 
+   -.560    3.7870    6.2431  1457.22  1260   458 
+   -.540    3.8092    6.2671  1455.01  1262   458 
+   -.520    3.8307    6.2901  1452.88  1263   457 
+   -.500    3.8513    6.3123  1450.83  1264   457 
+   -.480    3.8712    6.3336  1448.86  1266   457 
+   -.460    3.8902    6.3541  1446.97  1267   457 
+   -.440    3.9085    6.3737  1445.16  1268   456 
+   -.420    3.9259    6.3924  1443.44  1269   456 
+   -.400    3.9425    6.4102  1441.79  1270   456 
+   -.380    3.9584    6.4271  1440.23  1271   456 
+   -.360    3.9734    6.4432  1438.74  1272   456 
+   -.340    3.9876    6.4584  1437.34  1273   455 
+   -.320    4.0010    6.4727  1436.01  1274   455 
+   -.300    4.0136    6.4861  1434.77  1275   455 
+   -.280    4.0254    6.4987  1433.60  1275   455 
+   -.260    4.0363    6.5104  1432.52  1276   455 
+   -.240    4.0465    6.5212  1431.52  1277   455 
+   -.220    4.0558    6.5312  1430.60  1277   454 
+   -.200    4.0643    6.5403  1429.76  1278   454 
+   -.180    4.0720    6.5485  1429.00  1278   454 
+   -.160    4.0789    6.5558  1428.32  1278   454 
+   -.140    4.0850    6.5623  1427.72  1279   454 
+   -.120    4.0903    6.5679  1427.20  1279   454 
+   -.100    4.0947    6.5726  1426.76  1279   454 
+   -.080    4.0983    6.5765  1426.40  1280   454 
+   -.060    4.1011    6.5794  1426.12  1280   454 
+   -.040    4.1031    6.5816  1425.93  1280   454 
+   -.020    4.1043    6.5828  1425.81  1280   454 
+    .000    4.1047    6.5832  1425.81  1280   454 
+    .020    4.1043    6.5828  1425.81  1280   454 
+    .040    4.1031    6.5816  1425.93  1280   454 
+    .060    4.1011    6.5794  1426.12  1280   454 
+    .080    4.0983    6.5765  1426.40  1280   454 
+    .100    4.0947    6.5726  1426.76  1279   454 
+    .120    4.0903    6.5679  1427.20  1279   454 
+    .140    4.0850    6.5623  1427.72  1279   454 
+    .160    4.0789    6.5558  1428.32  1278   454 
+    .180    4.0720    6.5485  1429.00  1278   454 
+    .200    4.0643    6.5403  1429.76  1278   454 
+    .220    4.0558    6.5312  1430.60  1277   454 
+    .240    4.0465    6.5212  1431.52  1277   455 
+    .260    4.0363    6.5104  1432.52  1276   455 
+    .280    4.0254    6.4987  1433.60  1275   455 
+    .300    4.0136    6.4861  1434.77  1275   455 
+    .320    4.0010    6.4727  1436.01  1274   455 
+    .340    3.9876    6.4584  1437.34  1273   455 
+    .360    3.9734    6.4432  1438.74  1272   456 
+    .380    3.9584    6.4271  1440.23  1271   456 
+    .400    3.9425    6.4102  1441.79  1270   456 
+    .420    3.9259    6.3924  1443.44  1269   456 
+    .440    3.9085    6.3737  1445.16  1268   456 
+    .460    3.8902    6.3541  1446.97  1267   457 
+    .480    3.8712    6.3336  1448.86  1266   457 
+    .500    3.8513    6.3123  1450.83  1264   457 
+    .520    3.8307    6.2901  1452.88  1263   457 
+    .540    3.8092    6.2671  1455.01  1262   458 
+    .560    3.7870    6.2431  1457.22  1260   458 
+    .580    3.7639    6.2183  1459.51  1259   458 
+    .600    3.7401    6.1926  1461.89  1257   459 
+    .620    3.7155    6.1660  1464.35  1255   459 
+    .640    3.6901    6.1386  1466.88  1254   459 
+    .660    3.6639    6.1103  1469.51  1252   459 
+    .680    3.6369    6.0811  1472.21  1250   460 
+    .700    3.6092    6.0510  1475.00  1248   460 
+    .720    3.5806    6.0201  1477.87  1246   460 
+    .740    3.5513    5.9883  1480.82  1244   461 
+    .760    3.5213    5.9557  1483.86  1242   461 
+    .780    3.4905    5.9222  1486.98  1240   461 
+    .800    3.4589    5.8878  1490.19  1237   462 
+    .820    3.4266    5.8526  1493.48  1235   462 
+    .840    3.3936    5.8165  1496.86  1232   462 
+    .860    3.3598    5.7796  1500.33  1230   463 
+    .880    3.3252    5.7418  1503.89  1227   463 
+    .900    3.2900    5.7032  1507.53  1225   463 
+    .920    3.2540    5.6637  1511.27  1222   464 
+    .940    3.2173    5.6234  1515.09  1219   464 
+    .960    3.1799    5.5823  1519.01  1216   464 
+    .980    3.1418    5.5404  1523.02  1213   465 
+   1.000    3.1031    5.4977  1527.13  1210   465 
+   1.020    3.0636    5.4541  1531.33  1207   466 
+   1.040    3.0235    5.4098  1535.63  1203   466 
+   1.060    2.9827    5.3646  1540.02  1200   466 
+   1.080    2.9413    5.3187  1544.52  1197   467 
+   1.100    2.8992    5.2720  1549.12  1193   467 
+   1.120    2.8565    5.2246  1553.82  1189   467 
+   1.140    2.8132    5.1764  1558.63  1186   468 
+   1.160    2.7693    5.1275  1563.55  1182   468 
+   1.180    2.7248    5.0778  1568.57  1178   468 
+   1.200    2.6797    5.0274  1573.71  1174   468 
+   1.220    2.6341    4.9763  1578.97  1170   469 
+   1.240    2.5879    4.9246  1584.34  1165   469 
+   1.260    2.5413    4.8721  1589.84  1161   469 
+   1.280    2.4940    4.8190  1595.46  1157   470 
+   1.300    2.4463    4.7653  1601.21  1152   470 
+   1.320    2.3982    4.7109  1607.09  1147   470 
+   1.340    2.3495    4.6560  1613.11  1143   471 
+   1.360    2.3004    4.6004  1619.27  1138   471 
+   1.380    2.2510    4.5443  1625.58  1133   471 
+   1.400    2.2011    4.4877  1632.03  1128   472 
+   1.420    2.1508    4.4305  1638.65  1123   472 
+   1.440    2.1002    4.3729  1645.42  1118   472 
+   1.460    2.0493    4.3147  1652.37  1112   472 
+   1.480    1.9981    4.2562  1659.49  1107   473 
+   1.500    1.9466    4.1972  1666.80  1101   473 
+   1.520    1.8948    4.1378  1674.31  1096   473 
+   1.540    1.8429    4.0781  1682.01  1090   474 
+   1.560    1.7907    4.0181  1689.94  1084   474 
+   1.580    1.7384    3.9578  1698.08  1078   474 
+   1.600    1.6860    3.8972  1706.47  1072   474 
+   1.620    1.6335    3.8364  1715.11  1066   475 
+   1.640    1.5809    3.7754  1724.02  1060   475 
+   1.660    1.5283    3.7143  1733.21  1054   475 
+   1.680    1.4758    3.6531  1742.71  1047   476 
+   1.700    1.4232    3.5918  1752.53  1041   476 
+   1.720    1.3708    3.5306  1762.70  1034   476 
+   1.740    1.3185    3.4693  1773.26  1028   477 
+   1.760    1.2664    3.4082  1784.21  1021   477 
+   1.780    1.2145    3.3471  1795.61  1014   478 
+   1.800    1.1629    3.2863  1807.49  1007   478 
+   1.820    1.1116    3.2257  1819.90  1000   478 
+   1.840    1.0607    3.1654  1822.84   993   479 
+   1.860    1.0101    3.1054  1813.98   986   480 
+   1.880     .9601    3.0459  1800.48   979   480 
+   1.900     .9105    2.9868  1786.36   972   481 
+   1.920     .8616    2.9283  1771.55   964   481 
+   1.940     .8132    2.8704  1755.96   957   482 
+   1.960     .7656    2.8132  1739.51   950   483 
+   1.980     .7187    2.7567  1722.10   942   484 
+   2.000     .6726    2.7010  1703.61   934   484 
+   2.020     .6274    2.6462  1683.91   927   485 
+   2.040     .5832    2.5924  1662.83   919   486 
+   2.060     .5399    2.5396  1640.19   912   487 
+   2.080     .4978    2.4880  1615.78   904   488 
+   2.100     .4568    2.4376  1589.34   896   490 
+   2.120     .4170    2.3885  1560.56   888   491 
+   2.140     .3785    2.3407  1529.08   881   492 
+   2.160     .3414    2.2945  1494.48   873   493 
+   2.180     .3058    2.2499  1456.25   865   495 
+   2.200     .2717    2.2070  1413.78   857   497 
+   2.220     .2392    2.1658  1366.32   850   498 
+   2.240     .2084    2.1266  1313.00   842   500 
+   2.260     .1794    2.0894  1252.76   834   502 
+   2.280     .1523    2.0543  1184.35   827   504 
+   2.300     .1271    2.0215  1106.53   820   506 
+ The reaction is endothermic!
+
+ ************************* Reaction rate calculations *************************
+
+   NGSPEC = 0  no special limits on free energy calc
+   Temperature loop :  NTEMP =   18
+   For tunneling, NQ12,NQ22 =  30  30
+   For this run, VMEP has been multiplied by   1.00000
+
+ ------------------------------------------------------------------------------
+                    Energetics at adiabatic maximum (VAD)
+ ------------------------------------------------------------------------------
+                                  hartrees       eV        cm**-1       kcal
+  3 point fit s =    .0000
+     VAD w/re reactant V            .0105       .2855     2302.51      6.5832
+     VAD w/re product V             .0105       .2855     2302.51      6.5832
+     VAD w/re reactant V+ZPE        .0063       .1725     1391.61      3.9788
+     VAD w/re product V+ZPE         .0063       .1725     1391.61      3.9788
+
+  5 point fit s =    .0000
+     VAD w/re reactant V            .0105       .2855     2302.51      6.5832
+     VAD w/re product V             .0105       .2855     2302.51      6.5832
+     VAD w/re reactant V+ZPE        .0063       .1725     1391.61      3.9788
+     VAD w/re product V+ZPE         .0063       .1725     1391.61      3.9788
+
+ ------------------------------------------------------------------------------
+
+
+ ******* Vibrationally adiabatic ground-state transmission coefficients *******
+
+       +/CAG
+  kappa        - the classical transmission coefficient for correcting
+                 the classical threshold of conventional TST
+
+       ZCT
+  kappa        - semiclassical transmission coefficient for
+                 tunneling along MEP with zero curvature
+
+       SCT
+  kappa        - semiclassical transmission coefficient for
+                 tunneling along MCP, in small curvature limit.
+
+
+  All tunneling corrections given below are normalized using
+  the probability at the maximum of the ground-state adiabatic curve.
+
+  To obtain the proper SAG kappa for conventional TST or CVT,
+  multiply the kappa mentioned above by the corresponding
+  classical transmission coefficient.
+
+  Number of Kronrod quadrature points used in the Boltzmann average =  61
+
+  Number of Kronrod quadrature points used in  evaluating
+  the theta integral for MEP and SCT = 61
+
+  Number of equal segments for Boltzmann average =  1
+
+  Number of equal segments for theta integral =  1
+
+  NTP  = number of turning points
+
+ ********** Semiclassical transmission probabilities and coefficients
+
+   NOTE: ** after a turning point implies that
+         E is less than V at that s value.
+
+ From spline fit the maximum of Va^G =  1.04910E-02 hartrees (   6.5832 kcal/mol)
+ where the reaction coordinate s =     .000000 bohr.
+
+
+ ------------------------------------------------------------------------------
+                          Transmission probabilities
+ ------------------------------------------------------------------------------
+  E(kcal)         ZCT           SCT       NTP   turning points (bohr)
+
+   2.6054      1.0789E-13    1.3382E-12    2     -2.035      2.035  
+   2.6106      1.1263E-13    1.3936E-12    2     -2.033      2.033  
+   2.6210      1.2292E-13    1.5133E-12    2     -2.029      2.029  
+   2.6369      1.4025E-13    1.7139E-12    2     -2.023      2.023  
+   2.6579      1.6698E-13    2.0204E-12    2     -2.016      2.016  
+   2.6839      2.0718E-13    2.4767E-12    2     -2.006      2.006  
+   2.7150      2.6785E-13    3.1565E-12    2     -1.995      1.995  
+   2.7512      3.6049E-13    4.1787E-12    2     -1.982      1.982  
+   2.7922      5.0423E-13    5.7368E-12    2     -1.967      1.967  
+   2.8380      7.3185E-13    8.1566E-12    2     -1.951      1.951  
+   2.8885      1.1009E-12    1.1996E-11    2     -1.934      1.934  
+   2.9434      1.7140E-12    1.8222E-11    2     -1.915      1.915  
+   3.0028      2.7569E-12    2.8542E-11    2     -1.895      1.895  
+   3.0664      4.5730E-12    4.6013E-11    2     -1.873      1.873  
+   3.1340      7.8107E-12    7.6220E-11    2     -1.850      1.850  
+   3.2055      1.3714E-11    1.2950E-10    2     -1.827      1.827  
+   3.2807      2.4706E-11    2.2517E-10    2     -1.802      1.802  
+   3.3593      4.5583E-11    3.9993E-10    2     -1.776      1.776  
+   3.4412      8.5986E-11    7.2435E-10    2     -1.749      1.749  
+   3.5262      1.6554E-10    1.3355E-09    2     -1.721      1.721  
+   3.6140      3.2464E-10    2.5021E-09    2     -1.693      1.693  
+   3.7045      6.4732E-10    4.7546E-09    2     -1.663      1.663  
+   3.7972      1.3100E-09    9.1481E-09    2     -1.633      1.633  
+   3.8921      2.6856E-09    1.7791E-08    2     -1.602      1.602  
+   3.9889      5.5674E-09    3.4912E-08    2     -1.570      1.570  
+   4.0872      1.1648E-08    6.9002E-08    2     -1.537      1.537  
+   4.1869      2.4550E-08    1.3713E-07    2     -1.503      1.503  
+   4.2877      5.2032E-08    2.7355E-07    2     -1.469      1.469  
+   4.3893      1.1068E-07    5.4683E-07    2     -1.434      1.434  
+   4.4914      2.3586E-07    1.0935E-06    2     -1.399      1.399  
+   4.5938      5.0260E-07    2.1839E-06    2     -1.362      1.362  
+   4.6962      1.0690E-06    4.3487E-06    2     -1.325      1.325  
+   4.7983      2.2653E-06    8.6197E-06    2     -1.288      1.288  
+   4.8999      4.7739E-06    1.6980E-05    2     -1.249      1.249  
+   5.0007      9.9874E-06    3.3188E-05    2     -1.211      1.211  
+   5.1004      2.0705E-05    6.4263E-05    2     -1.171      1.171  
+   5.1987      4.2457E-05    1.2308E-04    2     -1.131      1.131  
+   5.2955      8.5974E-05    2.3281E-04    2     -1.090      1.090  
+   5.3904      1.7161E-04    4.3424E-04    2     -1.049      1.049  
+   5.4831      3.3706E-04    7.9746E-04    2     -1.007      1.007  
+   5.5735      6.5034E-04    1.4397E-03    2      -.964       .964  
+   5.6614      1.2305E-03    2.5513E-03    2      -.921       .921  
+   5.7464      2.2792E-03    4.4303E-03    2      -.878       .878  
+   5.8283      4.1243E-03    7.5252E-03    2      -.834       .834  
+   5.9069      7.2773E-03    1.2479E-02    2      -.789       .789  
+   5.9821      1.2494E-02    2.0164E-02    2      -.744       .744  
+   6.0536      2.0817E-02    3.1667E-02    2      -.698       .698  
+   6.1212      3.3566E-02    4.8211E-02    2      -.652       .652  
+   6.1848      5.2221E-02    7.0976E-02    2      -.606       .606  
+   6.2441      7.8162E-02    1.0081E-01    2      -.559       .559  
+   6.2991      1.1223E-01    1.3784E-01    2      -.512       .512  
+   6.3496      1.5424E-01    1.8126E-01    2      -.464       .464  
+   6.3954      2.0279E-01    2.2925E-01    2      -.417       .417  
+   6.4364      2.5530E-01    2.7930E-01    2      -.369       .369  
+   6.4725      3.0842E-01    3.2854E-01    2      -.320       .320  
+   6.5037      3.5872E-01    3.7424E-01    2      -.272       .272  
+   6.5297      4.0344E-01    4.1434E-01    2      -.223       .223  
+   6.5507      4.4076E-01    4.4754E-01    2      -.174       .174  
+   6.5666      4.6944E-01    4.7296E-01    2      -.125       .125  
+   6.5770      4.8857E-01    4.8989E-01    2      -.077       .077  
+   6.5822      4.9808E-01    4.9830E-01    2      -.032       .032  
+
+
+ ------------------------------------------------------------------------------
+                          Transmission coefficients
+ ------------------------------------------------------------------------------
+  M = no. of points per segment for imaginary action integ.
+  N = no. of points per segment for Boltzmann average
+
+                       M= 30        M= 61        M= 30        M= 61
+  T(K)                 N= 30        N= 30        N= 61        N= 61
+
+                                      ZCT
+
+    80.0             6.3310E+00   6.3317E+00   6.3310E+00   6.3317E+00
+   100.0             2.6360E+00   2.6361E+00   2.6360E+00   2.6361E+00
+   140.0             1.5526E+00   1.5526E+00   1.5526E+00   1.5526E+00
+   200.0             1.2277E+00   1.2277E+00   1.2277E+00   1.2277E+00
+   211.0             1.2014E+00   1.2014E+00   1.2014E+00   1.2014E+00
+   223.0             1.1777E+00   1.1777E+00   1.1777E+00   1.1777E+00
+   236.0             1.1566E+00   1.1566E+00   1.1566E+00   1.1566E+00
+   243.0             1.1468E+00   1.1468E+00   1.1468E+00   1.1468E+00
+   249.0             1.1392E+00   1.1392E+00   1.1392E+00   1.1392E+00
+   263.0             1.1235E+00   1.1235E+00   1.1235E+00   1.1235E+00
+   283.0             1.1054E+00   1.1055E+00   1.1054E+00   1.1055E+00
+   300.0             1.0931E+00   1.0931E+00   1.0931E+00   1.0931E+00
+   350.0             1.0672E+00   1.0672E+00   1.0672E+00   1.0672E+00
+   400.0             1.0509E+00   1.0509E+00   1.0509E+00   1.0509E+00
+   500.0             1.0322E+00   1.0322E+00   1.0322E+00   1.0322E+00
+   600.0             1.0222E+00   1.0222E+00   1.0222E+00   1.0222E+00
+   800.0             1.0124E+00   1.0124E+00   1.0124E+00   1.0124E+00
+  1000.0             1.0079E+00   1.0079E+00   1.0079E+00   1.0079E+00
+
+                                      SCT
+
+    80.0             1.4377E+01   1.4379E+01   1.4377E+01   1.4379E+01
+   100.0             3.7033E+00   3.7035E+00   3.7033E+00   3.7035E+00
+   140.0             1.7710E+00   1.7710E+00   1.7710E+00   1.7710E+00
+   200.0             1.3007E+00   1.3007E+00   1.3007E+00   1.3007E+00
+   211.0             1.2647E+00   1.2647E+00   1.2647E+00   1.2647E+00
+   223.0             1.2327E+00   1.2327E+00   1.2327E+00   1.2327E+00
+   236.0             1.2043E+00   1.2043E+00   1.2043E+00   1.2043E+00
+   243.0             1.1912E+00   1.1912E+00   1.1912E+00   1.1912E+00
+   249.0             1.1810E+00   1.1810E+00   1.1810E+00   1.1810E+00
+   263.0             1.1602E+00   1.1602E+00   1.1602E+00   1.1602E+00
+   283.0             1.1363E+00   1.1363E+00   1.1363E+00   1.1363E+00
+   300.0             1.1201E+00   1.1201E+00   1.1201E+00   1.1201E+00
+   350.0             1.0863E+00   1.0863E+00   1.0863E+00   1.0863E+00
+   400.0             1.0652E+00   1.0652E+00   1.0652E+00   1.0652E+00
+   500.0             1.0411E+00   1.0411E+00   1.0411E+00   1.0411E+00
+   600.0             1.0283E+00   1.0283E+00   1.0283E+00   1.0283E+00
+   800.0             1.0158E+00   1.0158E+00   1.0158E+00   1.0158E+00
+  1000.0             1.0100E+00   1.0100E+00   1.0100E+00   1.0100E+00
+
+                                Representative Tunneling Energy (kcal/mol)  
+           kappa^+/CAG(T)    -----------------------------------------------
+      T(K)                                ZCT                SCT
+
+      80.00        1.0000                6.3273             6.0381
+     100.00        1.0000                6.4726             6.3868
+     140.00        1.0000                6.5822             6.5480
+     200.00        1.0000                6.5822             6.5822
+     211.00        1.0000                6.5822             6.5822
+     223.00        1.0000                6.5822             6.5822
+     236.00        1.0000                6.5822             6.5822
+     243.00        1.0000                6.5822             6.5822
+     249.00        1.0000                6.5822             6.5822
+     263.00        1.0000                6.5822             6.5822
+     283.00        1.0000                6.5822             6.5822
+     300.00        1.0000                6.5822             6.5822
+     350.00        1.0000                6.5822             6.5822
+     400.00        1.0000                6.5822             6.5822
+     500.00        1.0000                6.5822             6.5822
+     600.00        1.0000                6.5822             6.5822
+     800.00        1.0000                6.5822             6.5822
+    1000.00        1.0000                6.5822             6.5822
+
+ ************************** Temperature =    80.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.979       2.252E+01
+ 5-Point fit       .0000         6.583         3.979       2.252E+01
+
+ ************************** Temperature =   100.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.979       4.203E+03
+ 5-Point fit       .0000         6.583         3.979       4.203E+03
+
+ ************************** Temperature =   140.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.979       1.794E+06
+ 5-Point fit       .0000         6.583         3.979       1.794E+06
+
+ ************************** Temperature =   200.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.983       1.850E+08
+ 5-Point fit       .0000         6.583         3.983       1.850E+08
+
+ ************************** Temperature =   211.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.985       3.276E+08
+ 5-Point fit       .0000         6.583         3.985       3.276E+08
+
+ ************************** Temperature =   223.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.988       5.739E+08
+ 5-Point fit       .0000         6.583         3.988       5.739E+08
+
+ ************************** Temperature =   236.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.991       9.895E+08
+ 5-Point fit       .0000         6.583         3.991       9.895E+08
+
+ ************************** Temperature =   243.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.994       1.296E+09
+ 5-Point fit       .0000         6.583         3.994       1.296E+09
+
+ ************************** Temperature =   249.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         3.996       1.614E+09
+ 5-Point fit       .0000         6.583         3.996       1.614E+09
+
+ ************************** Temperature =   263.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.001       2.592E+09
+ 5-Point fit       .0000         6.583         4.001       2.592E+09
+
+ ************************** Temperature =   283.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.011       4.710E+09
+ 5-Point fit       .0000         6.583         4.011       4.710E+09
+
+ ************************** Temperature =   300.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.021       7.356E+09
+ 5-Point fit       .0000         6.583         4.021       7.356E+09
+
+ ************************** Temperature =   350.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.059       2.130E+10
+ 5-Point fit       .0000         6.583         4.059       2.130E+10
+
+ ************************** Temperature =   400.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.110       4.734E+10
+ 5-Point fit       .0000         6.583         4.110       4.734E+10
+
+ ************************** Temperature =   500.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.250       1.446E+11
+ 5-Point fit       .0000         6.583         4.250       1.446E+11
+
+ ************************** Temperature =   600.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.433       3.035E+11
+ 5-Point fit       .0000         6.583         4.433       3.035E+11
+
+ ************************** Temperature =   800.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         4.907       7.609E+11
+ 5-Point fit       .0000         6.583         4.907       7.609E+11
+
+ ************************** Temperature =  1000.00 K ***************************
+
+                Canonical Variational Transition State Properties
+ ------------------------------------------------------------------------------
+                   CVT       G  CVT
+                  s  (T)    V [s   (T)]     Gmax (T)          k(T)
+                   *         a  *
+                 (bohr)     (kcal/mol)    (kcal/mol)         (1/sec)
+ 3-Point fit       .0000         6.583         5.492       1.314E+12
+ 5-Point fit       .0000         6.583         5.492       1.314E+12
+
+   ****************************  Final results  ****************************
+
+   In the following output:
+
+      ZCT stands for the MEPSAG method,
+      SCT stands for the CD-SCSAG method, and
+      nt or notunn stands for the non-tunneling contributions.
+
+
+                                 Kappa factors  
+                                 -------------
+
+     T(K)       TST/W      TST/CAG      CVT/CAG
+
+     80.00    2.1596E+00  1.0000E+00  1.0000E+00
+    100.00    1.7422E+00  1.0000E+00  1.0000E+00
+    140.00    1.3787E+00  1.0000E+00  1.0000E+00
+    200.00    1.1855E+00  1.0000E+00  1.0000E+00
+    211.00    1.1667E+00  1.0000E+00  1.0000E+00
+    223.00    1.1492E+00  1.0000E+00  1.0000E+00
+    236.00    1.1333E+00  1.0000E+00  1.0000E+00
+    243.00    1.1257E+00  1.0000E+00  1.0000E+00
+    249.00    1.1197E+00  1.0000E+00  1.0000E+00
+    263.00    1.1073E+00  1.0000E+00  1.0000E+00
+    283.00    1.0927E+00  1.0000E+00  1.0000E+00
+    300.00    1.0825E+00  1.0000E+00  1.0000E+00
+    350.00    1.0606E+00  1.0000E+00  1.0000E+00
+    400.00    1.0464E+00  1.0000E+00  1.0000E+00
+    500.00    1.0297E+00  1.0000E+00  1.0000E+00
+    600.00    1.0206E+00  1.0000E+00  1.0000E+00
+    800.00    1.0116E+00  1.0000E+00  1.0000E+00
+   1000.00    1.0074E+00  1.0000E+00  1.0000E+00
+
+
+     T(K)         ZCT         SCT
+
+     80.00    6.3317E+00  1.4379E+01
+    100.00    2.6361E+00  3.7035E+00
+    140.00    1.5526E+00  1.7710E+00
+    200.00    1.2277E+00  1.3007E+00
+    211.00    1.2014E+00  1.2647E+00
+    223.00    1.1777E+00  1.2327E+00
+    236.00    1.1566E+00  1.2043E+00
+    243.00    1.1468E+00  1.1912E+00
+    249.00    1.1392E+00  1.1810E+00
+    263.00    1.1235E+00  1.1602E+00
+    283.00    1.1055E+00  1.1363E+00
+    300.00    1.0931E+00  1.1201E+00
+    350.00    1.0672E+00  1.0863E+00
+    400.00    1.0509E+00  1.0652E+00
+    500.00    1.0322E+00  1.0411E+00
+    600.00    1.0222E+00  1.0283E+00
+    800.00    1.0124E+00  1.0158E+00
+   1000.00    1.0079E+00  1.0100E+00
+
+
+     T(K)     ZCT-notunn  SCT-notunn
+
+     80.00    7.1256E-01  6.9659E-01
+    100.00    7.4245E-01  7.2613E-01
+    140.00    7.8721E-01  7.7128E-01
+    200.00    8.3155E-01  8.1704E-01
+    211.00    8.3777E-01  8.2354E-01
+    223.00    8.4406E-01  8.3013E-01
+    236.00    8.5034E-01  8.3675E-01
+    243.00    8.5353E-01  8.4010E-01
+    249.00    8.5615E-01  8.4287E-01
+    263.00    8.6192E-01  8.4897E-01
+    283.00    8.6941E-01  8.5692E-01
+    300.00    8.7517E-01  8.6305E-01
+    350.00    8.8951E-01  8.7839E-01
+    400.00    9.0090E-01  8.9065E-01
+    500.00    9.1786E-01  9.0902E-01
+    600.00    9.2987E-01  9.2212E-01
+    800.00    9.4574E-01  9.3953E-01
+   1000.00    9.5576E-01  9.5059E-01
+
+
+                             Forward rates (sec**-1)
+                             -----------------------
+
+   T(K)      TST         TST/W      TST/CAG       CVT
+
+   80.00  2.2523E+01  4.8641E+01  2.2523E+01  2.2523E+01
+  100.00  4.2026E+03  7.3216E+03  4.2026E+03  4.2026E+03
+  140.00  1.7943E+06  2.4737E+06  1.7943E+06  1.7943E+06
+  200.00  1.8501E+08  2.1934E+08  1.8501E+08  1.8501E+08
+  211.00  3.2759E+08  3.8220E+08  3.2759E+08  3.2759E+08
+  223.00  5.7392E+08  6.5957E+08  5.7392E+08  5.7392E+08
+  236.00  9.8950E+08  1.1214E+09  9.8950E+08  9.8950E+08
+  243.00  1.2959E+09  1.4588E+09  1.2959E+09  1.2959E+09
+  249.00  1.6138E+09  1.8070E+09  1.6138E+09  1.6138E+09
+  263.00  2.5921E+09  2.8703E+09  2.5921E+09  2.5921E+09
+  283.00  4.7096E+09  5.1460E+09  4.7096E+09  4.7096E+09
+  300.00  7.3562E+09  7.9628E+09  7.3562E+09  7.3562E+09
+  350.00  2.1299E+10  2.2590E+10  2.1299E+10  2.1299E+10
+  400.00  4.7337E+10  4.9533E+10  4.7337E+10  4.7337E+10
+  500.00  1.4462E+11  1.4891E+11  1.4462E+11  1.4462E+11
+  600.00  3.0348E+11  3.0974E+11  3.0348E+11  3.0348E+11
+  800.00  7.6095E+11  7.6977E+11  7.6095E+11  7.6095E+11
+ 1000.00  1.3136E+12  1.3233E+12  1.3136E+12  1.3136E+12
+
+
+   T(K)     CVT/CAG
+ 
+   80.00  2.2523E+01
+  100.00  4.2026E+03
+  140.00  1.7943E+06
+  200.00  1.8501E+08
+  211.00  3.2759E+08
+  223.00  5.7392E+08
+  236.00  9.8950E+08
+  243.00  1.2959E+09
+  249.00  1.6138E+09
+  263.00  2.5921E+09
+  283.00  4.7096E+09
+  300.00  7.3562E+09
+  350.00  2.1299E+10
+  400.00  4.7337E+10
+  500.00  1.4462E+11
+  600.00  3.0348E+11
+  800.00  7.6095E+11
+ 1000.00  1.3136E+12
+
+
+   T(K)     TST/ZCT     CVT/ZCT
+ 
+   80.00  1.4261E+02  1.4261E+02
+  100.00  1.1078E+04  1.1078E+04
+  140.00  2.7858E+06  2.7858E+06
+  200.00  2.2714E+08  2.2714E+08
+  211.00  3.9356E+08  3.9356E+08
+  223.00  6.7592E+08  6.7592E+08
+  236.00  1.1445E+09  1.1445E+09
+  243.00  1.4862E+09  1.4862E+09
+  249.00  1.8384E+09  1.8384E+09
+  263.00  2.9123E+09  2.9123E+09
+  283.00  5.2062E+09  5.2062E+09
+  300.00  8.0410E+09  8.0410E+09
+  350.00  2.2732E+10  2.2732E+10
+  400.00  4.9748E+10  4.9748E+10
+  500.00  1.4927E+11  1.4927E+11
+  600.00  3.1022E+11  3.1022E+11
+  800.00  7.7038E+11  7.7038E+11
+ 1000.00  1.3240E+12  1.3240E+12
+
+
+   T(K)    TST/ZCTnt   CVT/ZCTnt
+ 
+   80.00  1.6049E+01  1.6049E+01
+  100.00  3.1202E+03  3.1202E+03
+  140.00  1.4125E+06  1.4125E+06
+  200.00  1.5385E+08  1.5385E+08
+  211.00  2.7445E+08  2.7445E+08
+  223.00  4.8442E+08  4.8442E+08
+  236.00  8.4142E+08  8.4142E+08
+  243.00  1.1061E+09  1.1061E+09
+  249.00  1.3817E+09  1.3817E+09
+  263.00  2.2342E+09  2.2342E+09
+  283.00  4.0946E+09  4.0946E+09
+  300.00  6.4379E+09  6.4379E+09
+  350.00  1.8946E+10  1.8946E+10
+  400.00  4.2646E+10  4.2646E+10
+  500.00  1.3274E+11  1.3274E+11
+  600.00  2.8220E+11  2.8220E+11
+  800.00  7.1966E+11  7.1966E+11
+ 1000.00  1.2555E+12  1.2555E+12
+
+
+   T(K)     TST/SCT     CVT/SCT
+ 
+   80.00  3.2385E+02  3.2385E+02
+  100.00  1.5564E+04  1.5564E+04
+  140.00  3.1777E+06  3.1777E+06
+  200.00  2.4064E+08  2.4064E+08
+  211.00  4.1431E+08  4.1431E+08
+  223.00  7.0745E+08  7.0745E+08
+  236.00  1.1917E+09  1.1917E+09
+  243.00  1.5437E+09  1.5437E+09
+  249.00  1.9059E+09  1.9059E+09
+  263.00  3.0073E+09  3.0073E+09
+  283.00  5.3516E+09  5.3516E+09
+  300.00  8.2395E+09  8.2395E+09
+  350.00  2.3138E+10  2.3138E+10
+  400.00  5.0423E+10  5.0423E+10
+  500.00  1.5055E+11  1.5055E+11
+  600.00  3.1206E+11  3.1206E+11
+  800.00  7.7294E+11  7.7294E+11
+ 1000.00  1.3268E+12  1.3268E+12
+
+
+   T(K)    TST/SCTnt   CVT/SCTnt
+ 
+   80.00  1.5689E+01  1.5689E+01
+  100.00  3.0516E+03  3.0516E+03
+  140.00  1.3839E+06  1.3839E+06
+  200.00  1.5116E+08  1.5116E+08
+  211.00  2.6979E+08  2.6979E+08
+  223.00  4.7643E+08  4.7643E+08
+  236.00  8.2796E+08  8.2796E+08
+  243.00  1.0887E+09  1.0887E+09
+  249.00  1.3602E+09  1.3602E+09
+  263.00  2.2006E+09  2.2006E+09
+  283.00  4.0357E+09  4.0357E+09
+  300.00  6.3488E+09  6.3488E+09
+  350.00  1.8709E+10  1.8709E+10
+  400.00  4.2161E+10  4.2161E+10
+  500.00  1.3146E+11  1.3146E+11
+  600.00  2.7985E+11  2.7985E+11
+  800.00  7.1494E+11  7.1494E+11
+ 1000.00  1.2487E+12  1.2487E+12
+
+
+                        Activation energies (kcal/mol)
+                        ------------------------------
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )        TST      TST/W        CVT
+
+     80.00   140.00    101.82        4.1864     4.0199     4.1864
+    140.00   200.00    164.71        4.2991     4.1592     4.2991
+    211.00   263.00    234.15        4.3866     4.2758     4.3866
+    223.00   283.00    249.44        4.3996     4.2941     4.3996
+    300.00   400.00    342.86        4.4396     4.3588     4.4396
+    500.00   800.00    615.38        4.3996     4.3527     4.3996
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/CAG    CVT/CAG
+ 
+     80.00   140.00    101.82        4.1864     4.1864
+    140.00   200.00    164.71        4.2991     4.2991
+    211.00   263.00    234.15        4.3866     4.3866
+    223.00   283.00    249.44        4.3996     4.3996
+    300.00   400.00    342.86        4.4396     4.4396
+    500.00   800.00    615.38        4.3996     4.3996
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/ZCT    CVT/ZCT
+ 
+     80.00   140.00    101.82        3.6649     3.6649
+    140.00   200.00    164.71        4.0813     4.0813
+    211.00   263.00    234.15        4.2445     4.2445
+    223.00   283.00    249.44        4.2672     4.2672
+    300.00   400.00    342.86        4.3458     4.3458
+    500.00   800.00    615.38        4.3484     4.3484
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/SCT    CVT/SCT
+ 
+     80.00   140.00    101.82        3.4095     3.4095
+    140.00   200.00    164.71        4.0129     4.0129
+    211.00   263.00    234.15        4.2036     4.2036
+    223.00   283.00    249.44        4.2295     4.2295
+    300.00   400.00    342.86        4.3198     4.3198
+    500.00   800.00    615.38        4.3345     4.3345
+
+
+                         Reverse rates (10**- 0sec**-1)
+                         ------------------------------
+
+   T(K)      TST         TST/W      TST/CAG       CVT
+
+   80.00  2.2523E+01  4.8641E+01  2.2523E+01  2.2523E+01
+  100.00  4.2026E+03  7.3216E+03  4.2026E+03  4.2026E+03
+  140.00  1.7943E+06  2.4737E+06  1.7943E+06  1.7943E+06
+  200.00  1.8501E+08  2.1934E+08  1.8501E+08  1.8501E+08
+  211.00  3.2759E+08  3.8220E+08  3.2759E+08  3.2759E+08
+  223.00  5.7392E+08  6.5957E+08  5.7392E+08  5.7392E+08
+  236.00  9.8950E+08  1.1214E+09  9.8950E+08  9.8950E+08
+  243.00  1.2959E+09  1.4588E+09  1.2959E+09  1.2959E+09
+  249.00  1.6138E+09  1.8070E+09  1.6138E+09  1.6138E+09
+  263.00  2.5921E+09  2.8703E+09  2.5921E+09  2.5921E+09
+  283.00  4.7096E+09  5.1460E+09  4.7096E+09  4.7096E+09
+  300.00  7.3562E+09  7.9628E+09  7.3562E+09  7.3562E+09
+  350.00  2.1299E+10  2.2590E+10  2.1299E+10  2.1299E+10
+  400.00  4.7337E+10  4.9533E+10  4.7337E+10  4.7337E+10
+  500.00  1.4462E+11  1.4891E+11  1.4462E+11  1.4462E+11
+  600.00  3.0348E+11  3.0974E+11  3.0348E+11  3.0348E+11
+  800.00  7.6095E+11  7.6977E+11  7.6095E+11  7.6095E+11
+ 1000.00  1.3136E+12  1.3233E+12  1.3136E+12  1.3136E+12
+
+
+   T(K)     CVT/CAG
+ 
+   80.00  2.2523E+01
+  100.00  4.2026E+03
+  140.00  1.7943E+06
+  200.00  1.8501E+08
+  211.00  3.2759E+08
+  223.00  5.7392E+08
+  236.00  9.8950E+08
+  243.00  1.2959E+09
+  249.00  1.6138E+09
+  263.00  2.5921E+09
+  283.00  4.7096E+09
+  300.00  7.3562E+09
+  350.00  2.1299E+10
+  400.00  4.7337E+10
+  500.00  1.4462E+11
+  600.00  3.0348E+11
+  800.00  7.6095E+11
+ 1000.00  1.3136E+12
+
+
+   T(K)     TST/ZCT     CVT/ZCT
+ 
+   80.00  1.4261E+02  1.4261E+02
+  100.00  1.1078E+04  1.1078E+04
+  140.00  2.7858E+06  2.7858E+06
+  200.00  2.2714E+08  2.2714E+08
+  211.00  3.9356E+08  3.9356E+08
+  223.00  6.7592E+08  6.7592E+08
+  236.00  1.1445E+09  1.1445E+09
+  243.00  1.4862E+09  1.4862E+09
+  249.00  1.8384E+09  1.8384E+09
+  263.00  2.9123E+09  2.9123E+09
+  283.00  5.2062E+09  5.2062E+09
+  300.00  8.0410E+09  8.0410E+09
+  350.00  2.2732E+10  2.2732E+10
+  400.00  4.9748E+10  4.9748E+10
+  500.00  1.4927E+11  1.4927E+11
+  600.00  3.1022E+11  3.1022E+11
+  800.00  7.7038E+11  7.7038E+11
+ 1000.00  1.3240E+12  1.3240E+12
+
+
+   T(K)    TST/ZCTnt   CVT/ZCTnt
+ 
+   80.00  1.6049E+01  1.6049E+01
+  100.00  3.1202E+03  3.1202E+03
+  140.00  1.4125E+06  1.4125E+06
+  200.00  1.5385E+08  1.5385E+08
+  211.00  2.7445E+08  2.7445E+08
+  223.00  4.8442E+08  4.8442E+08
+  236.00  8.4142E+08  8.4142E+08
+  243.00  1.1061E+09  1.1061E+09
+  249.00  1.3817E+09  1.3817E+09
+  263.00  2.2342E+09  2.2342E+09
+  283.00  4.0946E+09  4.0946E+09
+  300.00  6.4379E+09  6.4379E+09
+  350.00  1.8946E+10  1.8946E+10
+  400.00  4.2646E+10  4.2646E+10
+  500.00  1.3274E+11  1.3274E+11
+  600.00  2.8220E+11  2.8220E+11
+  800.00  7.1966E+11  7.1966E+11
+ 1000.00  1.2555E+12  1.2555E+12
+
+
+   T(K)     TST/SCT     CVT/SCT
+ 
+   80.00  3.2385E+02  3.2385E+02
+  100.00  1.5564E+04  1.5564E+04
+  140.00  3.1777E+06  3.1777E+06
+  200.00  2.4064E+08  2.4064E+08
+  211.00  4.1431E+08  4.1431E+08
+  223.00  7.0745E+08  7.0745E+08
+  236.00  1.1917E+09  1.1917E+09
+  243.00  1.5437E+09  1.5437E+09
+  249.00  1.9059E+09  1.9059E+09
+  263.00  3.0073E+09  3.0073E+09
+  283.00  5.3516E+09  5.3516E+09
+  300.00  8.2395E+09  8.2395E+09
+  350.00  2.3138E+10  2.3138E+10
+  400.00  5.0423E+10  5.0423E+10
+  500.00  1.5055E+11  1.5055E+11
+  600.00  3.1206E+11  3.1206E+11
+  800.00  7.7294E+11  7.7294E+11
+ 1000.00  1.3268E+12  1.3268E+12
+
+
+   T(K)    TST/SCTnt   CVT/SCTnt
+ 
+   80.00  1.5689E+01  1.5689E+01
+  100.00  3.0516E+03  3.0516E+03
+  140.00  1.3839E+06  1.3839E+06
+  200.00  1.5116E+08  1.5116E+08
+  211.00  2.6979E+08  2.6979E+08
+  223.00  4.7643E+08  4.7643E+08
+  236.00  8.2796E+08  8.2796E+08
+  243.00  1.0887E+09  1.0887E+09
+  249.00  1.3602E+09  1.3602E+09
+  263.00  2.2006E+09  2.2006E+09
+  283.00  4.0357E+09  4.0357E+09
+  300.00  6.3488E+09  6.3488E+09
+  350.00  1.8709E+10  1.8709E+10
+  400.00  4.2161E+10  4.2161E+10
+  500.00  1.3146E+11  1.3146E+11
+  600.00  2.7985E+11  2.7985E+11
+  800.00  7.1494E+11  7.1494E+11
+ 1000.00  1.2487E+12  1.2487E+12
+
+
+                        Activation energies (kcal/mol)
+                        ------------------------------
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )        TST      TST/W        CVT
+
+     80.00   140.00    101.82        4.1864     4.0199     4.1864
+    140.00   200.00    164.71        4.2991     4.1592     4.2991
+    211.00   263.00    234.15        4.3866     4.2758     4.3866
+    223.00   283.00    249.44        4.3996     4.2941     4.3996
+    300.00   400.00    342.86        4.4396     4.3588     4.4396
+    500.00   800.00    615.38        4.3996     4.3527     4.3996
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/CAG    CVT/CAG
+ 
+     80.00   140.00    101.82        4.1864     4.1864
+    140.00   200.00    164.71        4.2991     4.2991
+    211.00   263.00    234.15        4.3866     4.3866
+    223.00   283.00    249.44        4.3996     4.3996
+    300.00   400.00    342.86        4.4396     4.4396
+    500.00   800.00    615.38        4.3996     4.3996
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/ZCT    CVT/ZCT
+ 
+     80.00   140.00    101.82        3.6649     3.6649
+    140.00   200.00    164.71        4.0813     4.0813
+    211.00   263.00    234.15        4.2445     4.2445
+    223.00   283.00    249.44        4.2672     4.2672
+    300.00   400.00    342.86        4.3458     4.3458
+    500.00   800.00    615.38        4.3484     4.3484
+
+                             -1 -1
+   Lower T  Upper T    (Ave T  )    TST/SCT    CVT/SCT
+ 
+     80.00   140.00    101.82        3.4095     3.4095
+    140.00   200.00    164.71        4.0129     4.0129
+    211.00   263.00    234.15        4.2036     4.2036
+    223.00   283.00    249.44        4.2295     4.2295
+    300.00   400.00    342.86        4.3198     4.3198
+    500.00   800.00    615.38        4.3345     4.3345
+
+
+              Equilibrium constants (unitless)
+ ------------------------------------------------------------
+     T(K)                 Forward                 Reverse
+
+     80.00             1.000000E+00            1.000000E+00
+    100.00             1.000000E+00            1.000000E+00
+    140.00             1.000000E+00            1.000000E+00
+    200.00             1.000000E+00            1.000000E+00
+    211.00             1.000000E+00            1.000000E+00
+    223.00             1.000000E+00            1.000000E+00
+    236.00             1.000000E+00            1.000000E+00
+    243.00             1.000000E+00            1.000000E+00
+    249.00             1.000000E+00            1.000000E+00
+    263.00             1.000000E+00            1.000000E+00
+    283.00             1.000000E+00            1.000000E+00
+    300.00             1.000000E+00            1.000000E+00
+    350.00             1.000000E+00            1.000000E+00
+    400.00             1.000000E+00            1.000000E+00
+    500.00             1.000000E+00            1.000000E+00
+    600.00             1.000000E+00            1.000000E+00
+    800.00             1.000000E+00            1.000000E+00
+   1000.00             1.000000E+00            1.000000E+00
+
+
+ ************************* END OF POLYRATE LONG OUTPUT *************************

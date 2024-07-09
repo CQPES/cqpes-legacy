@@ -1,0 +1,17 @@
+if [ -f $5 ]
+then
+  if ! [ -f ../gen$6_$1 ]
+  then 
+    echo $6 > ../gen$6_$1
+  fi
+
+  if ! [ -f $2 ]
+  then
+    cat .insertlib > $2
+  fi
+
+  echo echo >> $2
+  echo echo $1: $3 >> $2
+  echo "./$4 < gen$6_$1" >> $2
+
+fi

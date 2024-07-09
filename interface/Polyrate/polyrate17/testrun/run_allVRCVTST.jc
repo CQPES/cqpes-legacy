@@ -1,0 +1,17 @@
+#!/bin/csh -f
+#
+# Usage: run_allVRCVTST.jc
+#
+# C shell script to run all polyrate testruns
+# (only VRC testruns)
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun
+#
+cd $wrkdir
+#
+ (time ./runch3.jc)    >& runch3.time
+#
+#end of run_all.jc
+
+

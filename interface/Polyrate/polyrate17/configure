@@ -1,0 +1,468 @@
+#!/usr/bin/perl
+
+$version='17';
+$home=$ENV{'HOME'};
+$wdir=$ENV{'PWD'};
+$prdir=$wdir;
+$srcdir=$prdir.'/src';
+$utildir=$prdir.'/util';
+$sprngdir=$prdir.'/sprng2.0';
+
+print "\nWelcome to POLYRATE! \n\n";
+
+&check_poly_path;
+&notice_for_user;
+&makeclean;
+&guess_setup;
+&manual_setup;
+if ($vrc_parallel) { &install_sprng; }
+&install_pr;
+
+print "\n";
+
+sub check_poly_path{
+  $ow_ver=1;
+  $ow_def=1;
+  if (-e "$home/.poly_path$version"){
+    &logprompt("POLYRATE $version appears to already be \n". 
+            "installed. Do you wish to continue,\n".
+            "and alter the $version installation? ",$ow_ver);
+  }  
+  if (-e "$home/.poly_path"){
+    &logprompt("\nDo you want the current POLYRATE to be your\n".
+               "new default version of POLYRATE?  ",$ow_def);
+  }
+}
+
+sub notice_for_user{
+  print "\n                            Notice to users ";
+  print "\n ************************************************************************";
+  print "\n Starting from version 2008, POLYRATE has two kinds of executables: \n";
+  print "\n 1. RP-VTST for reactions with potential energy barriers (serial code)"; 
+  print "\n 2. VRC-VTST for barrierless bimolecular association reactions (MPI code) \n";
+  print "\n RP-VTST and VRC-VTST need different executables and they should be ";
+  print "\n compiled separately by running this script ";
+  print "\n ************************************************************************\n";
+
+}
+
+sub makeclean{
+  print "\n Cleaning the src/ directory ... \n";
+  chdir $srcdir;
+  `make clean`;
+  chdir $prdir;
+}
+                                                                                
+sub guess_setup{
+  print "\n";
+
+  $proc=`uname -p`;
+  $os=  `uname`;
+
+  chomp $proc;
+  chomp $os;
+
+  print "... processor is $proc\n";
+  print "... OS is $os\n";
+
+  $vrc_parallel=0;
+  &logprompt1("\nIs this running used to generate Makefile for RP-VTST or VRC-VTST? \n",$vrc_parallel);
+
+  if($vrc_parallel) {
+    $parallel=1
+   }
+
+# find the f77 compiler
+  $gnu=0;
+  $intel=0;
+  if ($os eq 'AIX'){
+    $fc=find('fort77','XLF F77 compiler')
+  }
+  if ($os eq 'Linux'){
+    $fc=find('ifort','Intel Fortran compiler - ifort');
+    if ($fc) {$intel=1}
+    if (!$fc) {
+     $fc=find('gfortran','GNU Fortran compiler - gfortran');
+     $gnu=1;
+    }
+    if (!$fc) {
+     $fc=find('g77','GNU Fortran compiler - g77');
+     $gnu=1;
+    }
+  }
+  if (!$fc){
+    $fc=find('f77','some F77 compiler');  
+  }
+
+# find the MPI compiler
+
+  if ($os eq 'AIX'){
+     $mpif77= find('mpxlf','MPXLF MPI compiler')
+  }
+  if (($os eq 'Linux')and($proc eq 'ia64')){
+     $mpif77= 'mpxlf -lmpi'
+  }
+  if (($os eq 'Linux')and($proc eq 'x86_64')){
+     $mpif77= find('mpif77','MPI compiler')
+#    $mpif77= 'mpif77'
+  }
+  if (!$mpif77){
+     $mpif77= find('mpif77','MPI compiler')
+  }
+
+# find the C compiler
+  $cc  =   find('icc','Intel C compiler');
+  if (! $cc) {
+     $cc  =   find('gcc','GNU C compiler');
+  }
+ 
+  $mpi_cc = find('mpicc','MPI C compiler');
+
+  chomp $fc;
+  chomp $cc;
+  chomp $mpif77;
+  chomp $mpi_cc;
+
+  $f77_compiler=$fc." -O ";
+  $mpi_compiler=$mpif77." -O ";  
+
+  if (($fc)and($cc)){$guess_ok=1};
+
+  if ($mpif77 && !vrc_parallel){
+    $parallel=1;
+#    &logprompt(" Do you want to try to use the MPI version of POLYRATE? ",$parallel);
+  }
+}
+                                                                                
+sub manual_setup{
+  print "\n";
+  &logprompt(" Do the options chosen above look OK?",$guess_ok);
+  if (not $guess_ok){die 'Restart script or configure manually.'}
+}
+                                                                                
+sub install_pr{
+  $successful=1;
+  print "... installing\n";
+
+  `echo $prdir > $home/.poly_path`;
+  `echo $version > $home/.poly_ver`;
+
+# $gnu=1;
+  if (($os eq 'AIX')and($proc eq 'powerpc')){`cp $utildir/dattim.ibm $srcdir/dattim.F`;$gnu=0}
+  if ($gnu){`cp $utildir/dattim.gnu $srcdir/dattim.F`;  $f77_compiler=$f77_compiler."-fno-automatic "}
+  if ($intel){$f77_compiler=$f77_compiler."-save "}
+
+  &create_makefile;
+
+  if ($successful){
+    print "\n---- POLYRATE INSTALLATION COMPLETE ----\n\nHave a nice day! :)\n";
+  }
+}
+
+sub prompt{
+  print $_[0]," [ $_[1] ]: ";
+  my $ans=<STDIN>;
+  chomp $ans;
+  if ($ans ne ''){$_[1]=$ans}
+}
+                    
+sub logprompt{
+  my $logicalt;
+  if ($_[1] == 0){$logicalt='no'}
+  else {$logicalt='yes'}
+  print $_[0]," [ $logicalt ]: ";
+  my $ans=<STDIN>;
+  chomp $ans;
+  if ($ans =~ /n|N/){$_[1]=0}
+  if ($ans =~ /y|Y/){$_[1]=1}
+}
+
+sub logprompt1{
+  my $logicalt;
+  if ($_[1] == 0){$logicalt='rp'}
+  else {$logicalt='vrc'}
+  print $_[0]," [ Choose 'RP' or 'VRC' ]: ";
+  my $ans=<STDIN>;
+  chomp $ans;
+  if ($ans =~ /r|R/){$_[1]=0}
+  if ($ans =~ /v|V/){$_[1]=1}
+}
+
+sub find{
+  my $program=$_[0];
+  $found = `which $program`;
+  if ($found =~ /no $program/){
+    $found = 0;
+  }
+  if ($found){
+    print "....found $_[1] :",$found;
+    return $found;
+  }
+  else {
+    print "....did not find $_[1] \n";
+    return 0;
+  }
+}
+
+
+sub create_makefile{
+  open (MAKEFILE, ">src/Makefile");
+  print ".... creating Makefile \n";
+  if ($parallel){
+    print MAKEFILE "F77C    = $mpi_compiler\n";
+    print MAKEFILE "CC      = $mpi_cc\n";
+    print MAKEFILE "MPIF77C = $mpi_compiler\n";
+    print MAKEFILE "MPICC = $mpi_cc\n";
+  }
+  else {
+  print MAKEFILE "F77C    = $f77_compiler\n";
+  print MAKEFILE "CC      = $cc\n";
+  }
+  print MAKEFILE "VERSION =$version\n";
+  print MAKEFILE "VPATH = ../poten    \n";
+  print MAKEFILE '# executables that can be built from this makefile
+
+DUMSEXE   = ../exe/polyrate$(VERSION).dum.serial.exe
+
+CH5SEXE   = ../exe/polyrate$(VERSION).ch5.serial.exe  
+CLHBRSEXE = ../exe/polyrate$(VERSION).clhbr.serial.exe
+CH4OSEXE  = ../exe/polyrate$(VERSION).ch4o.serial.exe 
+CMCSEXE   = ../exe/polyrate$(VERSION).cmc.serial.exe  
+CWMCSEXE  = ../exe/polyrate$(VERSION).cwmc.serial.exe 
+NH3SEXE   = ../exe/polyrate$(VERSION).nh3.serial.exe  
+H2NISEXE  = ../exe/polyrate$(VERSION).h2ni.serial.exe 
+H3SEXE    = ../exe/polyrate$(VERSION).h3.serial.exe   
+HNISEXE   = ../exe/polyrate$(VERSION).hni.serial.exe  
+OH3SEXE   = ../exe/polyrate$(VERSION).oh3.serial.exe 
+OHCLSEXE  = ../exe/polyrate$(VERSION).ohcl.serial.exe
+HO2SEXE   = ../exe/polyrate$(VERSION).ho2.serial.exe';
+
+#if ($parallel && !$vrc_parallel){
+if ($parallel) {
+print MAKEFILE '
+CH5PEXE = ../exe/polyrate$(VERSION).ch5.mpi.exe
+CH3PEXE = ../exe/polyrate$(VERSION).ch3.mpi.exe
+';}
+print MAKEFILE '
+#User may add new executables here';
+  print MAKEFILE "\n\n";
+
+  print MAKEFILE '%.o: %.F',"\n";
+  print MAKEFILE chr(9);        # print a tab
+  if($parallel){
+  print MAKEFILE '$(MPIF77C) -c $<',"\n";
+  }
+  else {
+  print MAKEFILE '$(F77C) -c $<',"\n"; 
+  }
+  print MAKEFILE '%.o: %.f90',"\n";
+  print MAKEFILE chr(9);        # print a tab
+  print MAKEFILE '$(F77C) -c $<',"\n"; 
+  print MAKEFILE '%.o: %.c',"\n";
+  print MAKEFILE chr(9);        # print a tab
+  print MAKEFILE '$(CC) -c $<',"\n";
+  print MAKEFILE "\n\n";
+
+  if ($vrc_parallel) {
+  print MAKEFILE 'OBJ = aamod.o acespoly.o alloc.o dattim.o givtst.o intbsv3.o poly40.o \
+polyrr.o headr.o interface.o polysz.o ef.o \
+hooks.o ivtstm.o polyag.o rtpjac.o \
+energetics.o intbsv1.o main_vrcmpi.o \
+polyhl.o fromblas.o intbsv2.o poly31.o polymq.o util.o torsion.o fromlapack.o',"\n\n";
+
+  print MAKEFILE 'vrctst_mpi.o : sprng_f.h vrctst_mpi.F',"\n";
+  print MAKEFILE chr(9);
+  print MAKEFILE '$(MPIF77C) -c vrctst_mpi.F',"\n\n";
+#
+#the path for linking SPRNG library. Users should modify it to the correct one in their machines.
+#
+
+  print MAKEFILE 'SPRNGLIB = -L../sprng2.0/lib -lsprng -lm',"\n\n"
+  }
+  else {
+  print MAKEFILE 'OBJ = aamod.o acespoly.o alloc.o dattim.o givtst.o intbsv3.o poly40.o \
+polyrr.o headr.o interface.o polysz.o ef.o hooks.o ivtstm.o polyag.o rtpjac.o \
+energetics.o intbsv1.o main.o polyhl.o fromblas.o intbsv2.o poly31.o \
+polymq.o util.o torsion.o fromlapack.o',"\n\n";
+  }
+
+#if ($parallel && $vrc_parallel){
+  print MAKEFILE 'poly_mpi.o: poly_mpi.F',"\n";
+  print MAKEFILE chr(9),'$(MPIF77C) -c poly_mpi.F',"\n";
+  print MAKEFILE 'ch3.o: ../poten/ch3.F',"\n";
+  print MAKEFILE chr(9),'$(MPIF77C) -c ../poten/ch3.F',"\n";
+  print MAKEFILE 'ch4o.o: ../poten/ch4o_module.f90 ../poten/ch4o.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/ch4o_module.f90 ../poten/ch4o.F',"\n";
+  print MAKEFILE 'ch5.o: ../poten/ch5.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/ch5.F',"\n";
+  print MAKEFILE 'chain3.o: ../poten/chain3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/chain3.F',"\n";
+  print MAKEFILE 'chain4.o: ../poten/chain4.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/chain4.F',"\n";
+  print MAKEFILE 'clhbr.o: ../poten/clhbr.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/clhbr.F',"\n";
+  print MAKEFILE 'cmc.o: ../poten/cmc.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/cmc.F',"\n";
+  print MAKEFILE 'coord3.o: ../poten/coord3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/coord3.F',"\n";
+  print MAKEFILE 'coord4.o: ../poten/coord4.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/coord4.F',"\n";
+  print MAKEFILE 'cwmc.o: ../poten/cwmc.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/cwmc.F',"\n";
+  print MAKEFILE 'dumpot.o: ../poten/dumpot.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/dumpot.F',"\n";
+  print MAKEFILE 'h2ni.o: ../poten/h2ni.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/h2ni.F',"\n";
+  print MAKEFILE 'h3.o: ../poten/h3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/h3.F',"\n";
+  print MAKEFILE 'hni.o: ../poten/hni.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/hni.F',"\n";
+  print MAKEFILE 'ho2.o: ../poten/ho2.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/ho2.F',"\n";
+  print MAKEFILE 'nh3.o: ../poten/nh3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/nh3.F',"\n";
+  print MAKEFILE 'oh3.o: ../poten/oh3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/oh3.F',"\n";
+  print MAKEFILE 'ohcl.o: ../poten/ohcl.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/ohcl.F',"\n";
+  print MAKEFILE 'setup3.o: ../poten/setup3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/setup3.F',"\n";
+  print MAKEFILE 'setup4.o: ../poten/setup4.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/setup4.F',"\n";
+  print MAKEFILE 'surf3.o: ../poten/surf3.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/surf3.F',"\n";
+  print MAKEFILE 'surf4.o: ../poten/surf4.F',"\n";
+  print MAKEFILE chr(9),'$(F77C) -c ../poten/surf4.F',"\n";
+  print MAKEFILE '#User may add line here to compile potential file.  Start second line with a tab',"\n";
+  print MAKEFILE "\n\n";
+  
+  print MAKEFILE '#User may add lines here to make the executable.  Example:',"\n";
+  print MAKEFILE '#SURFACE:',"\n";
+  print MAKEFILE '#',chr(9),'gmake $(SURFACEEXE)',"\n";
+  print MAKEFILE '#$(SURFACEEXE):$(OBJ) dummy_mpi.o surface.o',"\n";
+  print MAKEFILE '#',chr(9),'$(F77C) -o $(SURFACEEXE) $(OBJ) dummy_mpi.o surface.o',"\n","\n";
+
+  print MAKEFILE 'DUMS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(DUMSEXE)',"\n";
+  print MAKEFILE '$(DUMSEXE):$(OBJ) dummy_mpi.o dumpot.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(DUMSEXE) $(OBJ) dummy_mpi.o dumpot.o',"\n","\n";
+
+  print MAKEFILE 'CH4OS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CH4OSEXE)',"\n";
+  print MAKEFILE '$(CH4OSEXE):$(OBJ) dummy_mpi.o ch4o.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(CH4OSEXE) $(OBJ) dummy_mpi.o ch4o.o ch4o_module.o',"\n","\n";
+
+  print MAKEFILE 'CH5S:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CH5SEXE)',"\n";
+  print MAKEFILE '$(CH5SEXE):$(OBJ) dummy_mpi.o ch5.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(CH5SEXE) $(OBJ) dummy_mpi.o ch5.o',"\n","\n";
+
+
+  print MAKEFILE 'CLHBRS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CLHBRSEXE)',"\n";
+  print MAKEFILE '$(CLHBRSEXE):$(OBJ) dummy_mpi.o clhbr.o setup3.o surf3.o coord3.o chain3.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(CLHBRSEXE) $(OBJ) dummy_mpi.o clhbr.o setup3.o surf3.o coord3.o chain3.o',"\n","\n";
+
+  print MAKEFILE 'CMCS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CMCSEXE)',"\n";
+  print MAKEFILE '$(CMCSEXE):$(OBJ) dummy_mpi.o cmc.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(CMCSEXE) $(OBJ) dummy_mpi.o cmc.o',"\n","\n";
+
+  print MAKEFILE 'CWMCS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CWMCSEXE)',"\n";
+  print MAKEFILE '$(CWMCSEXE):$(OBJ) dummy_mpi.o cwmc.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(CWMCSEXE) $(OBJ) dummy_mpi.o cwmc.o',"\n","\n";
+
+  print MAKEFILE 'H2NIS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(H2NISEXE)',"\n";
+  print MAKEFILE '$(H2NISEXE):$(OBJ) dummy_mpi.o h2ni.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(H2NISEXE) $(OBJ) dummy_mpi.o h2ni.o',"\n","\n";
+
+  print MAKEFILE 'H3S:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(H3SEXE)',"\n";
+  print MAKEFILE '$(H3SEXE):$(OBJ) dummy_mpi.o h3.o setup3.o surf3.o coord3.o chain3.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(H3SEXE) $(OBJ) dummy_mpi.o h3.o setup3.o surf3.o coord3.o chain3.o',"\n","\n";
+
+  print MAKEFILE 'HNIS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(HNISEXE)',"\n";
+  print MAKEFILE '$(HNISEXE):$(OBJ) dummy_mpi.o hni.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(HNISEXE) $(OBJ) dummy_mpi.o hni.o',"\n","\n";
+
+  print MAKEFILE 'HO2S:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(HO2SEXE)',"\n";
+  print MAKEFILE '$(HO2SEXE):$(OBJ) dummy_mpi.o ho2.o setup3.o surf3.o coord3.o chain3.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(HO2SEXE) $(OBJ) dummy_mpi.o ho2.o setup3.o surf3.o coord3.o chain3.o',"\n","\n";
+
+  print MAKEFILE 'NH3S:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(NH3SEXE)',"\n";
+  print MAKEFILE '$(NH3SEXE):$(OBJ) dummy_mpi.o nh3.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(NH3SEXE) $(OBJ) dummy_mpi.o nh3.o',"\n","\n";
+
+  print MAKEFILE 'OH3S:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(OH3SEXE)',"\n";
+  print MAKEFILE '$(OH3SEXE):$(OBJ) dummy_mpi.o oh3.o setup4.o surf4.o coord4.o chain4.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(OH3SEXE) $(OBJ) dummy_mpi.o oh3.o setup4.o surf4.o coord4.o chain4.o',"\n","\n";
+
+  print MAKEFILE 'OHCLS:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(OHCLSEXE)',"\n";
+  print MAKEFILE '$(OHCLSEXE):$(OBJ) dummy_mpi.o ohcl.o setup3.o surf3.o coord3.o chain3.o',"\n",chr(9);
+  print MAKEFILE '$(F77C) -o $(OHCLSEXE) $(OBJ) dummy_mpi.o ohcl.o setup3.o surf3.o coord3.o chain3.o',"\n";
+  print MAKEFILE "\n";
+
+  print MAKEFILE 'CH3:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CH3PEXE)',"\n";
+  print MAKEFILE '$(CH3PEXE):$(OBJ) dummy_mpi.o vrctst_mpi.o ch3.o',"\n",chr(9);
+  print MAKEFILE '$(MPIF77C) -o $(CH3PEXE) $(OBJ) dummy_mpi.o vrctst_mpi.o ch3.o $(SPRNGLIB)',"\n";
+  print MAKEFILE "\n";
+
+# if ($parallel && !$vrc_parallel){
+  print MAKEFILE 'CH5P:',"\n",chr(9);
+  print MAKEFILE 'gmake -s $(CH5PEXE)',"\n";
+  print MAKEFILE '$(CH5PEXE):$(OBJ) poly_mpi.o ch5.o',"\n",chr(9);
+  print MAKEFILE '$(MPIF77C) -o $(CH5PEXE) $(OBJ) poly_mpi.o ch5.o',"\n"; 
+   print MAKEFILE "\n";}
+
+  print MAKEFILE "\n";
+  print MAKEFILE "clean:","\n",chr(9),"rm -f *.o","\n";
+  close MAKEFILE;
+  print ".... done with Makefile \n";
+#}
+
+#}
+
+sub install_sprng {
+  print "\n Installing SPRNG2.0 library ... \n";
+  chdir $sprngdir;
+  $ccline = 'CC = '.$mpi_cc;
+  replace ($ccline);
+  `make realclean`;
+  `make`;
+  if (-e "$sprngdir/lib/libsprng.a") {
+  print "SPRNG 2.0 installation complete \n\n";
+  } else {die "Failed to install SPRNG2.0 library";}
+  chdir $prdir;
+#end of install_sprng
+}
+
+
+sub replace {
+$replace = $_[0];
+
+  local @lines;
+  local $data_file;
+  $data_file= './SRC/make.GENERIC';
+  open DATA, "$data_file" or die "can't open $data_file $!";
+  my @array_of_data = <DATA>;
+  close (DATA);
+  $key='CC =';
+  @array_search = grep{/$key/}@array_of_data;
+  chomp  @array_search;
+  $search = @array_search[0];
+  
+  open(NAME,"<$data_file");
+  while(<NAME>){
+  $_ =~ s/$search/$replace/g;
+  push @lines, $_;}
+  close(NAME);open(NAME,">$data_file");
+  foreach $line (@lines){print NAME $line}
+}

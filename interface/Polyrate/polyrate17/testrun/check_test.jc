@@ -1,0 +1,45 @@
+#!/bin/csh -f
+#
+# C shell script to check the results with the output in testo
+#
+# Usage check_test.jc test_run_group
+#
+if ($#argv != 1) then
+   echo "Usage: check_test.jc testrun_group"
+   echo "For example: check_test.jc ch5"
+   exit 1 
+endif
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/$argv[1]
+set testodir = $polydir/testo
+#
+cd $testodir
+#
+set outfile = $polydir/testrun/$argv[1].chk
+#
+echo "" >> $outfile
+echo -n "Date of comparison: " >> $outfile
+date >> $outfile
+echo "---------------------------------------------------" >> $outfile
+echo "" >> $outfile
+#
+switch ($argv[1])
+  case 'ch4o':
+    foreach file ($argv[1]tr*.fu15)
+       echo "testrun = $file:r" >> $outfile
+       diff -b $file $wrkdir/$file >>& $outfile
+       echo "" >> $outfile
+    end
+    breaksw 
+  default:
+    foreach file ($argv[1]*tr*.fu15)
+       echo "testrun = $file:r" >> $outfile
+       diff -b $file $wrkdir/$file >>& $outfile
+       echo "" >> $outfile
+    end
+    breaksw
+endsw
+#
+# End of check_test.jc
+#

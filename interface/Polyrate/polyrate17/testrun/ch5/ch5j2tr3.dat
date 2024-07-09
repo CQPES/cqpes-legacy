@@ -1,0 +1,232 @@
+*General
+
+  TITLE
+ CH3 + H2 -> CH4 + H: J2 PES-QQ/WKB+Harmonic-Euler/No stab; Test run ch5j2tr3
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+    3    H
+    4    H 
+    5    C  
+    6    H
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMTYPE      central
+  NUMSTEP      0.0001
+
+*OPTIMIZATION
+
+  SCALE        0.45
+  DLX2         0.0001
+  NOPRINT
+
+*REACT1
+
+  GEOM
+   2    2.067300   0.000000   0.000000
+   3   -1.033650   0.000000   1.790000
+   4   -1.033650   0.000000  -1.790000
+   5    0.000000   0.000000   0.000000
+  END
+
+  CONSTANT
+   2    y   z
+   3    y 
+   5    x   y   z 
+  END
+
+#parameters for optimizing - 
+
+  HARMONIC
+  DEMIN        0.17433
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*REACT2
+
+  GEOM
+   1    0.000000  30.000000   0.000000
+   6    0.000000  31.402      0.000000
+  END
+
+  SPECIES    LINRP
+  LINAXIS   y-axis
+
+  CONSTANT
+   1    x   y   z
+   6    x   z
+  END
+
+#parameters for optimizing -
+
+  HARMONIC
+  DEMIN        0.17433
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+ 
+
+*PROD1
+
+  GEOM
+   1    2.067300   0.000000   0.000000
+   2   -0.689100   1.949070   0.000000 
+   3   -0.689100  -0.97453    1.68794 
+   4   -0.68910   -0.97453   -1.687930 
+   5    0.000000   0.000000   0.000000 
+  END
+
+  CONSTANT
+   1    y   z
+   2    z
+   5    x   y   z
+  END
+
+#parameters for optimizing -
+
+  HARMONIC
+  DEMIN        0.17433
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD2
+
+  STATUS  2
+
+  GEOM
+   6   32.000000   0.000      0.000000
+  END
+
+#parameters for optimizing -
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES   ATOMIC
+
+*START
+
+  GEOM
+   1    2.5575     0.000000   0.000000
+   2   -0.5865    -1.987      0.05923
+   3   -0.58654    1.04476    1.691
+   4   -0.5865     0.9422     -1.75
+   5    0.000000   0.000000   0.000000
+   6    4.25       0.0        0.0
+  END
+
+  CONSTANT
+   1    y   z
+   5    x   y   z
+   6    z
+  END
+
+#parameters for optimizing -
+
+  DQQP         0.03     1.2
+  DEMIN        0.17433
+  NOPROJECT
+
+  VANHAR
+   10    qqsemi
+   11    qqsemi 
+  END
+
+  ELEC 
+    2     0.0
+  END 
+
+  SPECIES   NONLINTS
+
+*PATH
+
+   SCALEMASS     1.777208
+   SSTEP         0.001
+   NSTEPS        99999
+   CURV          dgrad
+   IDIRECT       1
+   FIRSTSTEP     nmode
+   INH           10
+
+   SRANGE
+      slp     1.1
+      slm    -1.8
+   END
+
+   SPECSTOP
+      CURVE vmep
+      POINT savegrid
+      PERCENTDOWN 60.
+   END
+ 
+  # end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+  EMIN        37.6
+
+  QUAD 
+    nqe        30
+    nqth       30
+  END
+
+  # end of tunnel section
+
+*RATE
+
+  BOTHK
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  CVT
+# ICVT
+  NOEDGEOK
+# PRGIGT
+
+  TEMP
+    200.
+    298.
+    400.
+    500.
+    667.
+  END
+
+  GSPEC
+     smin   -0.30
+     smax    0.20
+  END
+
+  EACT
+    200.   298.
+    200.   400.
+    200.   500.
+    400.   500.
+  END
+
+  ANALYSIS
+    200.
+    298.
+    400.
+    500.
+    667.
+  END

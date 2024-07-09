@@ -1,0 +1,142 @@
+*General
+
+  TITLE
+ CH3 + H-H -> CH4 + H  IVTST-0
+ Test run 
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+    3    H
+    4    H 
+    5    C  
+    6    H
+  END
+
+  IVTST0
+  
+  INPUNIT AU
+
+# end of general section
+
+*ENERGETICS
+
+  POTENTIAL  unit29
+
+
+*REACT1
+
+  GEOM
+   2    2.067300   .000000   .000000
+   3   -1.033650   .000000  1.790334
+   4   -1.033650   .000000 -1.790334
+   5     .000000   .000000   .000000
+  END
+
+  ELEC
+    2   0.0
+  END
+
+*REACT2
+
+  GEOM
+   1     .000000  5.000000   .000000
+   6     .000000  6.402000   .000000
+  END
+
+  SPECIES    LINRP
+  LINAXIS   y-axis
+
+  ELEC
+    1   0.0
+  END
+ 
+*PROD1
+
+  GEOM
+   1    2.067300   .000000   .000000
+   2    -.689100  1.949069   .000000
+   3    -.689100  -.974535  1.687943
+   4    -.689100  -.974535 -1.687943
+   5     .000000   .000000   .000000
+  END
+
+  ELEC
+    1   0.0
+  END
+
+*PROD2
+
+  GEOM
+   6     6.000000   .000000   .00000
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES   ATOMIC
+
+*START
+
+  GEOM
+   1    2.557510   .000000   .000000
+   2    -.586540 -1.986928   .059100
+   3    -.586540  1.044646  1.691180
+   4    -.586540   .942280 -1.750280
+   5     .000000   .000000   .000000
+   6    4.250163   .000000   .000000
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  NONLINTS
+
+*PATH
+
+   SCALEMASS     1.777208
+   SSTEP         0.005
+   INH           40     
+   COORD       carte
+
+   SRANGE
+      slp     1.5
+      slm    -1.5
+   END
+ 
+ # end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+  QUAD
+    nqe        30
+    nqth       30
+  END
+
+ # end of tunnel section
+
+*RATE
+
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  CVT
+  PRPART       rps
+  PRDELG
+
+  GSPEC
+     smin   -0.20
+     smax    0.20
+  END
+
+  TEMP
+    200.
+    300.
+    600.
+   1500.
+  END

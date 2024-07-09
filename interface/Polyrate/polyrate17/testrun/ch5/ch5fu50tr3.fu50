@@ -1,0 +1,49 @@
+*VTSTIC            # unit fu50 input for CH3+H2
+
+ MEPTYPER  TWO     # reactant well
+ MEPTYPEP  TWO     # product well
+
+ ENESAD    24.4691 # the classical barrier height in kcal/mol
+
+ ENERXN    .6714   # the exerogicity in kcal/mol
+ 
+ NOFREQMAT         # No frequency matching is needed for 0IVTST
+                   # calculations
+
+ DETMI
+    3.032065E12   # Det I CH3
+    1.664696E3    # Det I H2
+    6.015687E13   # Det I of saddle point
+    8.624899E12   # Det I CH4
+    0.000000000   # Det I H 
+ END
+
+# 0IVTST
+
+ LCTCOR    QUADLIN  # Using QUADRATIC or LINEAR fit for the nonadiabatic
+                    # region, this is the default value
+
+ FREQIMAG  2738.61   # the imaginary frequency of saddle point 
+
+ RANGEIC
+   RPL   0.710    # used findl 
+ END
+
+ RCFREQA
+    5478.65  3827.00  3827.00  3552.38  1690.00
+    1690.00   583.44     0.00     0.00     0.00
+       0.00
+ END
+
+ PCFREQA
+    3789.43  3789.43  3789.40  3528.52  1903.50
+    1903.50  1675.08  1675.08  1675.03     0.00
+       0.00
+ END
+
+ SADFREQ
+    3794.30  3794.30  3566.50  1810.50  1773.20
+    1773.10  1550.00  1549.00  1445.00   720.10
+     720.10
+ END
+

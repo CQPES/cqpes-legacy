@@ -1,0 +1,42 @@
+*VTSTIC          # unit fu50 input for ho2tr5 test run in POLYRATE 6.0
+
+ MEPTYPER  TWO   # two reactant
+ MEPTYPEP  ONE   # one product
+
+ ENESAD    1.00  # the classical barrier height is 1.00 kcal/mol
+
+ ENERXN  -42.10  # the exerogicity is 42.10 kcal/mol
+
+ FREQMAT         # The reaction coordinate is the third mode of product
+    1   1   1
+    2   2   2
+ END
+
+ DETMI
+    0.00  
+    8.00E4       # Det I of OH
+    2.00E14      # Det I of saddle point
+    6.00E13      # Det I of HO2
+    0.00E0
+ END
+
+ FREQIMAG  500.0    # the imaginary frequency of saddle point is 500i cm-1
+
+ PCINFO
+    SPC  2.20
+ END
+
+ RCFREQA
+    1533.0     0.0
+ END
+
+ PCFREQA
+    3655.0  1416.0  1181.0
+ END
+
+ SADFREQ
+    1328.0   525.0
+ END
+
+
+

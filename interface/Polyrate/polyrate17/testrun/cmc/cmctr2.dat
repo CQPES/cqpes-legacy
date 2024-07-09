@@ -1,0 +1,186 @@
+*General
+
+ TITLE
+ ClCH3 + Cl(-) -> ClCH3--Cl(-): PES-ULLR+UVIB/Euler-NO STAB; Test run cmctr2
+ END
+
+  ATOMS
+    1    C 
+    2    Cl 
+    3    H
+    4    H 
+    5    H 
+    6    Cl 
+  END
+
+  ICOPT
+    ENERGY      SECKART
+    FREQ        ICA
+    both
+    zero
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  FPRINT
+
+*OPTIMIZATION
+
+  DLX2         0.0001
+
+
+*REACT1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   3.500000
+   3    1.900000   0.000000  -0.650000
+   4   -0.950000  -1.660000  -0.650000
+   5   -0.950000   1.660000  -0.650000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    y 
+  END
+
+  NOPROJECT
+
+
+*REACT2
+
+  STATUS  2
+
+  GEOM
+   6    0.000000   0.000000  -500000.0
+  END
+
+  SPECIES   ATOMIC
+
+*PROD1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   3.402000 
+   3    1.910000   0.000000  -0.658000
+   4   -0.960000  -1.660000  -0.658930 
+   5   -0.960000   1.660000  -0.658930 
+   6    0.000000   0.000000  -5.936000 
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    y
+  END
+
+  NOPROJECT
+
+
+*START
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   4.352000 
+   3    2.022000   0.000000   0.000000
+   4   -1.011000  -1.751800   0.000000 
+   5   -1.011000   1.751800   0.000000 
+   6    0.000000   0.000000  -4.352000 
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    y
+  END
+
+  SPECIES  NONLINTS
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*PATH
+
+   SCALEMASS     1.000
+   SSTEP         0.002
+   INH           5   
+   NSTEPS        1099998
+   CURV          dgrad
+   IDIRECT       1
+   SIGN          product
+
+   SFIRST
+     nfstep      250
+     fsize       0.000090722
+   END
+
+   SRANGE
+      slp     1.7
+      slm    -1.7
+   END
+ 
+  # end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+  QUAD 
+    nqe        20
+    nqth       30
+  END
+
+  # end of tunnel section
+
+*RATE
+
+  FORWARDK
+  SIGMAF       1
+  SIGMAR       1
+  TST
+  CVT
+# ICVT
+  NOEDGEOK
+  PRDELG
+
+  TEMP
+    200.
+    250.
+    300.
+    350.
+    400.
+    500.
+    600.
+    800.
+   1000.
+  END
+
+  GSPEC
+     smin   -0.4
+     smax    0.4
+  END
+
+  EACT
+    200.    300.
+    350.    500.
+    600.   1000.
+  END
+
+  ANALYSIS
+    200.
+    250.
+    300.
+    350.
+    400.
+    500.
+    600.
+    800.
+   1000.
+  END
