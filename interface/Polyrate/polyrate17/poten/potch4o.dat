@@ -1,0 +1,82 @@
+ CH4+O potential energy surface; units converted to int'n units in readt
+ units here are: kcal/mol; mdyn; Angstroms and radians
+ indices for atoms: nnc, nnb, nnh(i),i=1,4
+   2   6   3   4   5   1
+ morse parameters for ch bonds: r0ch, d1ch, d3ch(38.834)
+   1.09397   112.230    47.932
+ attenuation parameters for ach: a1ch, b1ch, c1ch(6.61404)
+   1.51925   0.33327    8.3040 
+ morse parameters for oh bonds: r0hh, d1hh, d3hh and ahh(ahh ajustado)
+   0.97060   108.030    48.671    2.2775
+ morse parameters for co bonds: r0cb, d1cb, d3cb and acb (23.150)
+   2.13600    84.758    25.012 1.673 
+ out-of-plane bend: a3s, b3s, aphi, bphi, cphi, rphi (b3s:-0.6)
+ 0.1419147 -0.6000 0.5287903 0.4006638 1.9209937   1.09397
+ out-of-plane bend: atheta, btheta, ctheta
+ 0.9078714 0.3548859 1.8915497
+ out-of-plane bend: fch, hch3
+ 0.0957500 0.1915000
+ in-plane bend: fkinf, ak, bk, aa1, aa2, aa3, aa4, aa5
+ 0.4058900 0.1260000   80.7132  3.213952  1.599963  2.165953 11.569977
+0.152629
+
+
+
+ CH4+O potential energy surface; units converted to int'n units in readt
+ units here are: kcal/mol; mdyn; Angstroms and radians
+ indices for atoms: nnc, nnb, nnh(i),i=1,4
+   2   6   3   4   5   1
+ morse parameters for ch bonds: r0ch, d1ch, d3ch(38.834)
+   1.09397   112.230    42.835
+ attenuation parameters for ach: a1ch, b1ch, c1ch(6.61404)
+   1.51925   0.33327   15.7400
+ morse parameters for oh bonds: r0hh, d1hh, d3hh and ahh(46.664)
+   0.97060   107.030    45.472    2.2889
+ morse parameters for co bonds: r0cb, d1cb, d3cb and acb (23.150)
+   1.66700    99.885    27.858 1.2520000
+ out-of-plane bend: a3s, b3s, aphi, bphi, cphi, rphi (b3s:-0.6)
+ 0.1419147 -0.6000 0.5287903 0.4006638 1.9209937   1.09397
+ out-of-plane bend: atheta, btheta, ctheta
+ 0.9078714 0.3548859 1.8915497
+ out-of-plane bend: fch, hch3
+ 0.0957500 0.1915000
+ in-plane bend: fkinf, ak, bk, aa1, aa2, aa3, aa4, aa5
+ 0.4058900 0.1260000   80.7132  3.213952  1.599963  2.165953 11.569977
+0.152629
+
+c Las unidades son las propias del POLYRATE, es decir, las energias
+c de disociacion, D1 y D3 en ev, las distancias en ua, y el resto
+c tambien en ua.
+       fact1= 0.52918D0
+       fact2= 627.52D0
+       fact3= fact1**3
+c 0.2294 convierte desde mdyn.A a ua
+       fact4=0.2294D0
+       fact5=fact1**2
+c 6.2422 convierte desde mdyn.A a eV 
+       fact6=6.2422D0
+
+ CH5 potential energy surface; unidades propias del POLYRATE 
+ units here are:ua y eV de energia ; ua de distancia and radians
+ indices for atoms: nnc, nnb, nnh(i),i=1,4
+   2   6   3   4   5   1
+ morse parameters for ch bonds: r0ch, d1ch, d3ch
+   2.06729   4.86687    1.6840
+ attenuation parameters for ach: a1ch, b1ch, c1ch
+   0.90648   0.07144   3.50002
+ morse parameters for hh bonds: r0hh, d1hh, d3hh and ahh
+   1.40200   4.74666    1.7200    1.0296
+ morse parameters for cb bonds: r0cb, d1cb, d3cb and acb
+   2.06729    1.1452    0.8700 0.9805856
+ out-of-plane bend: a3s, b3s, aphi, bphi, cphi, rphi
+ 0.0210289 -0.579849 0.2798252 0.0593704 3.6301323   2.067293
+ out-of-plane bend: atheta, btheta, ctheta
+ 0.4804274 0.052586 3.5744920
+ out-of-plane bend: fch3, hch3
+ 0.0219650 0.0439301
+ in-plane bend: fkinf, ak, bk, aa1, aa2, aa3, aa4, aa5
+ 2.5449449 0.7865172   3.00000  0.900000  0.448037  0.606532 3.239940 
+0.042749
+
+
+

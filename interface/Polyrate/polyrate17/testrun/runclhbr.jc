@@ -1,0 +1,20 @@
+#!/bin/csh -f
+#
+# C shell script to run all clhbr testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/clhbr
+#
+cd $wrkdir
+#
+./clhbrtr1.jc
+./clhbrtr2.jc
+./clhbrtr3.jc
+./clhbrtr4.jc
+./clhbrtr5.jc
+#
+echo
+echo "clhbr testruns completed"
+#
+#end of runclhbr.jc
+

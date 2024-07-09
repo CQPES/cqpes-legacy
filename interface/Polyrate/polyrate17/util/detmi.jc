@@ -1,0 +1,25 @@
+#!/bin/csh -f
+#
+# Usage: detmi.jc filename
+#
+set wrkdir = `pwd`
+set exe = detmi.exe
+cd $wrkdir
+#
+if ($#argv != 1) then
+   echo "Usage: detmi.jc input_file_name"
+   exit 1
+endif
+#
+if (! -e $argv[1]) then
+   echo "File $argv[1] is not existent."
+   exit 1
+endif
+#
+ln $argv[1] detmi.dat
+$exe
+mv detmi.out $argv[1]:r.out
+rm detmi.dat
+echo "Done. Output file is $argv[1]:r.out"
+#
+# End of script

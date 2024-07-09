@@ -1,0 +1,149 @@
+*General
+
+  TITLE
+ H2/NI (100) -> 2J/Hi: Depristo PES Harmonic / Euler; Test run h2nitr1
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMSTEP      0.0001
+  FPRINT
+
+*OPTIMIZATION
+
+  DLX2         0.0001
+  PRINT
+
+*REACT1
+
+  GEOM
+   1    2.4485107   0.87648928   2.6728794
+   2    3.4704054  -0.14540540   2.0733214
+  END
+
+  CONSTANT
+  END
+
+  DEMIN        0.1286340
+  NOPROJECT
+
+  DIATOM
+  END
+
+  ELEC
+    1   0.0
+  END
+
+  SPECIES   SSRP
+
+
+*PROD1
+
+  GEOM
+   1   -0.0142590   3.33925900   1.0126798
+   2    3.3392590  -0.01425900   1.01267981
+  END
+
+  CONSTANT
+  END
+
+  DEMIN        0.1286340
+  NOPROJECT
+
+  SPECIES  SSRP
+
+*START
+
+  GEOM
+   1    1.9732605   1.35173940   2.43212410
+   2    3.3565374  -0.03153740   1.11997045
+  END
+
+  CONSTANT
+  END
+
+  DEMIN        0.1286340
+  NOPROJECT
+
+  SPECIES    SSTS
+
+*PATH
+
+   SCALEMASS     1.000000
+   SSTEP         0.0005
+   NSTEPS        99999
+   RPM           ESD
+   INH           20
+   CURV          dgrad
+   SIGN          reactant
+   IDIRECT       1
+
+
+   SRANGE
+      slp     3.00
+      slm    -1.32
+   END
+
+
+*TUNNEL
+
+  ZCT
+  SCT
+  NOALLEXCIT
+
+  LCTOPT
+    lcgmethod   3
+    nolctrst
+    nolctstr
+    ngtheta    30
+    ngamp       5
+  END
+
+  QUAD
+    nqe        20
+    nqth       40
+  END
+
+
+*RATE
+
+  BOTHK
+  SIGMAF       1
+  SIGMAR       1
+  TST
+  CVT
+
+  TEMP
+    100.
+    140.
+    160.
+    200.
+    300.
+    400.
+    600.
+    800.
+  END
+  
+  EACT
+    100.   140.
+    140.   200.
+    200.   400.
+  END
+
+  ANALYSIS
+    100.
+    140.
+    160.
+    200.
+    300.
+    400.
+    600.
+    800.
+  END

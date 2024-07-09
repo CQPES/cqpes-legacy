@@ -1,0 +1,19 @@
+#!/bin/csh -f
+#
+# C shell script to run all h3o2 testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/h3o2
+#
+cd $wrkdir
+#
+./h3o2fu31tr1.jc
+./h3o2fu31tr2.jc
+./h3o2fu31tr3.jc
+./h3o2fu31tr4.jc
+#
+echo
+echo "h3o2 testruns completed"
+#
+#end of runh3o2.jc
+

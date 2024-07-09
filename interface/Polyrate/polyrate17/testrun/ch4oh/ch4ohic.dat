@@ -1,0 +1,53 @@
+*VTSTIC           # unit fu50 input for ch4ohtr1 test run in POLYRATE 6.0
+
+ MEPTYPER  TWO    # two reactants
+ MEPTYPEP  TWO    # two products
+
+ ENESAD    7.3651 # the classical barrier height in kcal/mol
+
+ ENERXN  -13.2725 # the exerogicity in kcal/mol
+
+ NOFREQMAT        # No frequency matching is needed for 0IVTST calculations
+
+ DETMI
+     144.876100   # Det I of CH4
+       1.487528   # Det I of OH
+   55580.975000   # Det I of saddle point
+      48.537710   # Det I of CH3
+       5.856340   # Det I of H2O
+ END
+
+ UNITMI   SCALE
+
+ HRRMI    ALL     # Correct the reduced moment of inertia of hindered rotation
+
+  MITS
+        7690.0        # Moment of inertia of Torsional mode of TS in a.u.
+#        854.44    # Reduced moment of inertia of TS in a.u. 7690/sqr(3),
+                  # including the symmetry factor
+  END
+ 
+ 0IVTST       on    # perform an zero-order IVTST calculation
+
+ FREQIMAG  1830.0 # the imaginary frequency of saddle point in cm-1
+
+ RCFREQA
+    3759.0   3093.0   3216.0   3216.0   3216.0
+    1600.0   1600.0   1358.0   1358.0   1358.0
+       0.0      0.0      0.0      0.0
+ END
+
+ PCFREQA
+    3923.0   3795.0   3372.0   3372.0   3201.0
+    1663.0   1450.0   1450.0    501.0      0.0
+       0.0      0.0      0.0      0.0      
+ END
+
+ SADFREQ
+    3748.0   3130.0   3259.0   3255.0   1414.0
+    1521.0   1494.0   1298.0   1206.0    933.0
+     769.0    357.0    316.0     40.0
+ END
+
+
+

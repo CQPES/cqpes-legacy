@@ -1,0 +1,57 @@
+#!/bin/csh -f
+#
+set wrkdir = `pwd`
+#
+cd $wrkdir
+#
+# Set the names of the testrun and the executable
+#
+set name = test31
+set exe = $wrkdir/rotate31.exe
+set source = $wrkdir/rotate31.f
+set polydir = `cat ~/.poly_path8.9`
+#
+# put in this line the appropriate compiling command
+#
+set CF = xlf 
+#
+# Check if the executable is available
+#
+if (-e $exe) then
+   echo "rotate31.exe exists"
+else
+   if (-e $source) then
+      echo "compiling rotate31.exe"
+      cp $polydir/src/param.inc param.inc
+      cp $polydir/src/percon.inc percon.inc
+      cp $polydir/src/common.inc common.inc
+      $CF -o rotate31.exe $source
+      /bin/rm -f param.inc
+      /bin/rm -f percon.inc
+      /bin/rm -f common.inc
+   else
+      echo "error compiling rotate31.exe"
+      echo "I can't find the source code"
+   endif
+endif
+#
+rm poly.fu* >& /dev/null
+#
+# Copy the data files to POLYRATE filenames. 
+#
+cp $name.dat poly.fu5
+cp $name.fu31 poly.fu31
+#
+# Write sysem message to .time file
+#
+(time $exe) >& $name.time
+echo " " >> $name.time
+# 
+# Copy the output files to appropriate filenames
+#
+rm poly.fu5 
+rm poly.fu31
+mv poly.fu6  $name.fu6
+mv poly.fu60 $name.fu60
+#
+# End of script

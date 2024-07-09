@@ -1,0 +1,20 @@
+#!/bin/csh -f
+#
+# C shell script to run all ho2 testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/ho2
+#
+cd $wrkdir
+#
+./ho2tr1.jc
+./ho2tr2.jc
+./ho2tr3.jc
+./ho2tr4.jc
+./ho2tr5.jc
+#
+echo
+echo "ho2 testruns completed"
+#
+#end of runho2.jc
+

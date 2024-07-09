@@ -1,0 +1,104 @@
+*General
+
+  TITLE
+NH3 -> NH3: Wolfsberg Potential #2 - Harmonic-Euler; Test run nh3tr1
+  END
+
+  ATOMS
+    1    N 
+    2    H 
+    3    H 
+    4    H 
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMSTEP       0.0001
+  FPRINT
+
+*OPTIMIZATION
+
+  PRINT
+  DLX2          0.0001
+
+*REACT1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    1.799440   0.000000  -0.711722
+   3   -0.899720  -1.558361  -0.711722
+   4   -0.899720   1.558361  -0.711722
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    y
+  END
+
+  NOPROJECT
+
+*PROD1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    1.799440   0.000000  -0.711722
+   3   -0.899720  -1.558361  -0.711722
+   4   -0.899720   1.558361  -0.711722
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    y
+  END
+
+  NOPROJECT
+
+
+*START
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    1.993508   0.000000   0.000000
+   3   -0.967540  -1.675828   0.000000
+   4   -0.967540   1.675828   0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    y
+  END
+
+  SPECIES     nonlints
+  NOPROJECT
+
+*PATH
+
+   SCALEMASS     1.00000
+   SSTEP         0.0001
+   NSTEPS        99999
+   CURV          dgrad
+   INH           100
+   SIGN          product
+   IDIRECT       1
+
+   SRANGE
+      slp     1.18
+      slm    -1.18
+   END
+
+
+*RATE
+
+   prpart  rps
+
+   TEMP
+       15.
+      100.
+      200.
+      600.
+    END
+
+    GTLOG
+

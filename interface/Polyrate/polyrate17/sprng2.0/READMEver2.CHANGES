@@ -1,0 +1,47 @@
+Chris S. 7 June 1999
+
+Makefile:  changed 'time*' to 'tim*' in the section 'realclean :'
+
+added a file AGAINstub:  to be used in place of nonexisting FORTRAN files;
+			and to be removed then.  
+----------------------------------------------------------------------------
+
+Mike Zhou, 8-June-1999
+
+For MPI:
+Use '#include "sprng.h"' to replace the line '#include "interface.h"' 
+in simple_mpi.c under SRC
+
+For Simple interface:
+add 
+	#define DEFAULT_RNG_TYPE SPRNG_LFG
+to sprng_f.h
+
+For libgmp, which may not be available on some platforms. Give user a 
+choice to exclude generator pmlcg.
+1. add 
+	# comment out if you want to exclude generator pmlcg which needs libgmp
+	GMPDEF = -DUSE_PMLCG
+to make.CHOICES under root
+2. In files make.* under SRC add $(GMPDEF) to CFLAGS and FFLAGS
+3. Modify SRC/sprng/sprng.c using something like
+	#ifdef USE_PMLCG
+	#include "pmlcg/pmlcg.h"
+	#endif
+
+----------------------------------------------------------------------------
+June 11, 1999 Chris S.
+
+Modified 'check_gen...' files in SRC, changed Makefile in SRC, and added two 
+scripts 'inserttimecheck' and 'insertcheck' to SRC, all needed to create 
+(by make in SRC) scripts 'timesprng' and 'checksprng' (located as previously
+in the top directory).  Take look at 'timesprng' and 'checksprng'.  
+All time tests and check tests are running/passing.
+Execute:
+	./timesprng
+	./checksprng
+----------------------------------------------------------------------------- 
+June 23, 1999 Mike
+
+Change make.LINUX to make.INTEL
+remove make.SOLARIS

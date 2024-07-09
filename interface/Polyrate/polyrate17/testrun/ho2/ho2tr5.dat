@@ -1,0 +1,162 @@
+*General
+
+  TITLE
+    H + O2 -> HO2: Melius/Blint pot-MorseI/Euler/No Stb; 
+   Test run ho2tr5
+  END
+
+  ATOMS
+    1    H 
+    2    O 
+    3    O
+  END
+
+  ICOPT
+    ENERGY      SECKART
+    FREQ        ICA
+    both
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  FPRINT
+
+*REACT1
+
+  STATUS  2
+
+  GEOM
+   1    -50.0000  0.000000    0.000000
+  END
+
+  SPECIES   ATOMIC
+
+*REACT2
+
+  STATUS  2
+
+  GEOM
+   2    0.000000   0.000000   0.000000
+   3    0.000000   2.315800   0.000000
+  END
+
+  SPECIES   linrp
+  LINAXIS  y-axis
+
+  DIATOM
+     re        2.3158
+     de        0.1779
+     beta      1.4694
+  END
+  
+  MORSE
+  MORMODEL     morsei
+  DEMIN        0.155900
+  NOPROJECT
+
+  ELEC
+    3   0.0
+  END
+
+
+*PROD1
+
+  GEOM
+   1   -0.449774   1.790639   0.000000
+   2    0.000000   0.000000   0.000000 
+   3    2.522786   0.000000   0.000000
+  END
+
+  CONSTANT
+   1    z
+   2    x   y   z
+   3    y   z
+  END
+
+  MORSE
+  MORMODEL     morsei
+  DEMIN        0.155900
+  NOPROJECT
+
+
+*START
+
+  GEOM
+   1   -1.880000   3.754847   0.000000
+   2    0.000000   0.000000   0.000000
+   3    2.330000   0.000000   0.000000
+  END
+
+  CONSTANT
+   1    z
+   2    x   y   z
+   3    y   z
+  END
+
+  MORSE
+  MORMODEL     morsei
+  DEMIN        0.155900
+  SPECIES       nonlints
+  NOPROJECT
+
+*PATH
+
+   SCALEMASS     0.977123
+   SSTEP         0.0002
+   NSTEPS        99999
+   RPM           ESD
+   INH           50
+   CURV          dgrad
+   SPRNT         0.0
+   IDIRECT       1
+   SIGN          reactant
+   PRINTSTEP
+
+   SRANGE
+      slp     0.8
+      slm    -2.3
+   END
+
+  # end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+  QUAD
+    nqe        30
+    nqth       30
+  END
+
+*RATE
+
+  SIGMAF       2
+  SIGMAR       1
+  TST
+  CVT
+  EDGEOK
+
+  TEMP
+    200.
+    250.
+    298.
+    300.
+    400.
+    500.
+    600.
+    780.
+   1000.
+   1500.
+   2400.
+   2500.
+  END
+
+  EACT
+      250.    500.
+      300.   1000.
+     1000.   2400.
+     1000.   2500.
+  END

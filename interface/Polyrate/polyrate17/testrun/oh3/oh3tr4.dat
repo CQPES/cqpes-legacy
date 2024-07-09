@@ -1,0 +1,243 @@
+#  The results are differed from the previous version because it is using
+#  IVTST-M for exrtrapolation. In the reactant direction, there is a 
+#  complex well and it is better to add the *WELLR for the exrapolation.
+
+*General
+
+  TITLE
+   OH + H2 -> OH2 + H: Schatz Pot Morse I/QQ-Adiab-Page-McIver; Test run oh3tr4
+  END
+
+  ATOMS
+    1    O 
+    2    H 
+    3    H
+    4    H
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMSTEP      0.0001
+
+*OPTIMIZATION
+
+  DLX2         0.0001
+
+*REACT1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    1.863300   0.000000   0.000000
+  END
+
+  SPECIES   linrp
+  LINAXIS  x-axis
+
+  CONSTANT
+   1    x   y   z
+   2    y   z
+  END
+
+  MORMODEL     morsei
+  MORSEQQ
+  DEMIN        0.148201
+  ANTLR        0.000000001
+  NOPROJECT
+
+  ELEC
+    2   0.0
+    2   0.000637887
+  END
+
+
+*REACT2
+
+  GEOM
+   3     50.0000  0.000000    0.000000
+   4     51.4286  0.000000    0.000000
+  END
+
+  SPECIES   linrp
+  LINAXIS  x-axis
+
+  CONSTANT
+   3    x   y   z
+   4    y   z
+  END
+
+  MORMODEL     morsei
+  MORSEQQ
+  DEMIN        0.148201
+  ANTLR        0.000000001
+  NOPROJECT
+
+ 
+*PROD1
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2   -0.456364  -1.749560   0.000000 
+   3    1.808100   0.000000   0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    z
+   3    y   z
+  END
+
+  MORMODEL     morsei
+  MORSEQQ
+  DEMIN        0.148201
+  ANTLR        0.000000001
+  NOPROJECT
+
+
+*PROD2
+
+  STATUS  2
+
+  GEOM
+   4   50.000000   0.000      0.000000
+  END
+
+  SPECIES   atomic
+
+  ELEC
+    2   0.0
+  END
+
+
+*START
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2   -0.833210  -1.658900   0.000000
+   3    2.308400   0.000000   0.000000
+   4    3.886600   0.445340   0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    z
+   3    y   z
+  END
+
+  MORMODEL     morsei
+  MORSEQQ
+  DEMIN        0.148201
+  ANTLR        0.000000001
+  SPECIES       nonlints
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*PATH
+
+   SCALEMASS     1.802023
+   SSTEP         0.001
+   NSTEPS        99999
+   RPM           PAGEM
+   INI           5
+   INH           5
+   CURV          dgrad
+   IDIRECT       -1
+
+   EXFIRST
+      exreact
+      exnstep    100
+      exstep     0.10
+#      exalpha    0.75
+   END
+
+   SRANGE
+      slp     0.30
+      slm    -1.77
+   END
+
+  # end of path section
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+  QUAD
+    nqe        30
+    nqth       30
+  END
+
+
+*RATE
+
+  FORWARDK
+  SIGMAF       2
+  SIGMAR       2
+  TST
+  CVT
+# ICVT
+  NOEDGEOK
+  PRPART       rp
+  PRDELG
+  STATE        adiab
+
+  STATEOPT
+    react1    1    ground
+    react2    1    first
+    prod1     2    ground
+    prod1     3    first
+    ts        4    ground
+    ts        5    first
+  END
+
+  PRPART       rpt
+
+  TEMP
+    200.
+    250.
+    298.
+    300.
+    350.
+    400.
+    600.
+    800.
+   1000.
+   1500.
+   2400.
+  END
+  
+  GTEMP
+    200.    0.15    -0.20
+    250.    0.12    -0.17
+    298.    0.05    -0.17
+    300.    0.03    -0.17
+    350.    0.03    -0.17
+    400.    0.00    -0.17
+    600.    0.00    -0.15
+    800.    0.00    -0.16
+   1000.    0.00    -0.16
+   1500.    0.00    -0.13
+   2400.    0.00    -0.13
+  END
+
+  EACT
+    200.   1000.
+    298.   1000.
+    298.   1500.
+  END
+
+  ANALYSIS
+    200.
+    250.
+    298.
+    300.
+    350.
+    400.
+    600.
+    800.
+  END

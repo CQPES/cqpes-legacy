@@ -1,0 +1,20 @@
+
+
+           FINAL RATE CONSTANTS IVTST-1 (cm**3/molecule-sec)
+
+  T(K)            TST          TST/W        TST/ZCT
+
+  200.0         4.57E-24      1.38E-23      1.53E-21
+  300.0         4.72E-20      8.95E-20      4.13E-19
+  600.0         4.50E-16      5.51E-16      7.12E-16
+ 1500.0         2.31E-13      2.40E-13      2.47E-13
+
+
+          FINAL RATE CONSTANTS (cm**3/molecule-sec)
+
+  T(K)      CVT        CVT/W      CVT/CAG     CVT/ZCT     CVT/SCT
+
+ 200.0    4.25E-24    1.28E-23    4.25E-24    1.54E-21    1.70E-19
+ 300.0    4.52E-20    8.57E-20    4.52E-20    4.17E-19    7.26E-18
+ 600.0    4.47E-16    5.46E-16    4.44E-16    7.20E-16    1.84E-15
+1500.0    2.31E-13    2.40E-13    2.28E-13    2.46E-13    2.91E-13

@@ -1,0 +1,55 @@
+#!/bin/csh -f
+#
+# This script compiles a given potential energy surface routine on 
+# LINUX.
+#
+# usage: potcomp.ibm arg1 arg2
+#        arg1 = potential filename
+#        arg2 = number of internal coordinates used to define the potential
+#
+# Set the command to be used by the compiler
+#
+set CF = "mpif77 -c"
+#
+set polydir = `cat ~/.poly_path9.4`
+set wrkdir  = $polydir/poten
+set objdir  = $polydir/obj
+set utildir = $polydir/poten      # set the path for the utility directory
+#
+cd $wrkdir
+#
+#
+if ( $#argv != 2) then            # check the number of arguments
+       echo "usage: potcomp.jc pot_filename #_internal_coords"
+       exit 1
+endif
+if (! -f $argv[1].f) then         # check for the existence of the pot file
+        echo "potential file $argv[1].f does not exist"
+        exit 1
+endif
+#
+if ( $argv[2] == 3) then                  # 3 internal coordinates
+# cat the potential file and all the utility files into a temp file
+     cat $argv[1].f $utildir/coord3.f $utildir/chain3.f \
+         $utildir/setup3.f  $utildir/surf3.f > $argv[1]pot.f
+#
+     $CF $argv[1]pot.f                    # compile the potential 
+     mv $argv[1]pot.o $objdir/$argv[1].o  # move the object module to the 
+#                                           object directory
+     /bin/rm $argv[1]pot.f                # remove the temporary file created
+#
+else if ( $argv[2] == 4 ) then            # 4 internal coordinates
+     cat $argv[1].f $utildir/coord4.f $utildir/chain4.f \
+         $utildir/setup4.f  $utildir/surf4.f > $argv[1]pot.f
+     $CF $argv[1]pot.f
+     mv $argv[1]pot.o $objdir/$argv[1].o
+     /bin/rm $argv[1]pot.f
+#
+else                                      # all other potential files
+     $CF $argv[1].f
+     mv $argv[1].o $objdir/$argv[1].o
+endif
+#
+echo "potcomp.linux completed"
+#
+#

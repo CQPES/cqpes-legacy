@@ -1,0 +1,4 @@
+/* This file is created by Makefile in SRC and incorporated in examples */
+/* with the purpose of displaying generators names  and corresponding   */
+/* numerals.                                                            */
+  printf("Evailable generators; use corresponding numeral:\n");

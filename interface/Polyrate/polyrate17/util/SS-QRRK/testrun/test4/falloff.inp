@@ -1,0 +1,28 @@
+#BasicInfo
+numbTrxn 3           
+Trxnlist             
+298.
+300.
+400.
+numbP  2             
+unitP lg10bar            
+Plist                
+3.
+-3.
+#Collision
+ColliIntg    Troe           
+avgEtrans 740. cal*mol-1    0.  all
+FE     0
+paramA   5.8  254.0  120.0     
+paramBath    3.4  120.0  39.948 
+#FalloffMethod
+Method  HLQRRK     
+rxn1    AEa       
+9.405083E+10 	24.3 
+1.006091E+11 	24.4 
+4.716439E+11 	25.4 
+sAstar       30.            
+GeoMeFreq    580.880669720707    
+MaxE         4000.          
+#END         
+

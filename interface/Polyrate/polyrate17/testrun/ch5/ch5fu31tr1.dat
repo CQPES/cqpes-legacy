@@ -1,0 +1,160 @@
+*General
+
+  TITLE
+ CH3 + H-H -> CH4 + H: IVTST-M-56/6 test run with fu31
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+    3    H
+    4    H 
+    5    C  
+    6    H
+  END
+
+  INPUNIT AU
+
+*ENERGETICS
+
+  potential  unit31
+
+*REACT1
+
+  GEOM
+   2        2.067307E+00    0.000000E+00    0.000000E+00
+   3       -1.033539E+00    0.000000E+00    1.790395E+00
+   4       -1.033539E+00   -1.010748E-11   -1.790395E+00
+   5        0.000000E+00    0.000000E+00    0.000000E+00
+  END
+
+  ELEC
+    2   0.0
+  END
+
+
+*REACT2
+
+  GEOM
+   1    0.000000  20.000000   0.000000
+   6    0.000000  21.402      0.000000
+  END
+
+  SPECIES    LINRP
+  LINAXIS   y-axis
+
+  ELEC
+    1   0.0
+  END
+ 
+
+*PROD1
+
+  GEOM
+   1    2.067300   0.000000   0.000000
+   2   -0.689060   1.949080   0.000000 
+   3   -0.689060  -0.97459    1.68793 
+   4   -0.68906   -0.97459   -1.687930 
+   5    0.000000   0.000000   0.000000 
+  END
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD2
+
+  GEOM
+   6   32.000000   0.000      0.000000
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES   ATOMIC
+
+
+*START
+
+  GEOM
+   1        2.557512E+00    0.000000E+00    0.000000E+00
+   2       -5.865398E-01   -1.986920E+00    5.937840E-02
+   3       -5.865398E-01    1.044883E+00    1.691034E+00
+   4       -5.865398E-01    9.420367E-01   -1.750412E+00
+   5        0.000000E+00    0.000000E+00    0.000000E+00
+   6        4.250163E+00    2.078933E-12    0.000000E+00
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  NONLINTS
+
+
+*PATH
+
+   SCALEMASS     1.000000
+   SSTEP         0.01
+   INH           1
+
+   SRANGE
+      slp     2.5
+      slm    -2.5
+   END
+ 
+   COORD  curv3
+
+   INTDEF
+    5-2  5-3  5-4  5-1  1-6
+    1-5-2  1-5-3  1-5-4
+    2-5-3  2-5-4
+    3-5-4
+    6=1=5
+   END
+
+
+*TUNNEL
+
+  ZCT
+  SCT
+
+  QUAD 
+    nqe        30
+    nqth       30
+  END
+
+
+*RATE
+
+  FORWARDK
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  CVT
+  # ICVT
+  NOEDGEOK
+
+  TEMP
+    200.
+    250.
+    300.
+    400.
+    600.
+   1000.
+   1500.
+   2400.
+  END
+
+  ANALYSIS
+    200.
+    250.
+    300.
+    400.
+    600.
+   1000.
+   1500.
+   2400.
+  END

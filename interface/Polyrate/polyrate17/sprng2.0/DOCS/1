@@ -1,0 +1,46 @@
+	The new SPRNG
+
+	Using the previous version of SPRNG, a user can use only one of the
+	SPRNG generators in one run of the program. The objective of the new
+	version is to combine the current random number generators (RNGs) into
+	a single library so that a user can use all of them in a single program
+	at a same time.
+   
+	Changes to the user interface
+
+	The user now is able to and needs to specify the type of RNG when a
+	random number stream is initialized. We add one integer argument
+	rng_type to the front of the argument list of the function init_sprng.
+
+	int *init_sprng(int rng_type, 
+		int stream_number, int nstreams, int seed, int rng_parameter) 
+	   SPRNG_POINTER init_sprng(integer rng_type,
+			   integer streamnum, integer nstreams,
+			   integer seed, integer param)
+
+
+	User can sprcify one of the follows for rng_type:
+         SPRNG_LFG 
+         SPRNG_LCG 
+         SPRNG_LCG64 
+         SPRNG_CMRG 
+         SPRNG_MLFG 
+         SPRNG_PMLCG 
+	The following macros are added to sprng.h and sprng_f.h:
+
+	#define SPRNG_LFG	0
+	#define SPRNG_LCG 	1
+	#define SPRNG_LCG64 2
+	#define SPRNG_CMRG 	3
+	#define SPRNG_MLFG 	4
+	#define SPRNG_PMLCG 5
+
+	For simple interface, a user can only have one random number stream at
+	one time since he doesn't specify stream ID.  
+	The default generator is "SPRNG_LFG".
+	User still can change RNG at runtime by calling init_sprng:
+	int *init_sprng(int rng_type, 
+		int seed, int rng_parameter) 
+	   SPRNG_POINTER init_sprng(integer rng_type,
+			   integer seed, integer param)
+	  

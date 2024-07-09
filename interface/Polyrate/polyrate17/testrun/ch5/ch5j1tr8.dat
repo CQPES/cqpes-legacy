@@ -1,0 +1,217 @@
+*General
+
+  TITLE
+ CH3 + H2 -> CH4 + H; J1 PES-Harmonic ES1 method * Test run ch5j1tr8 
+  END
+
+  ATOMS
+    1    H 
+    2    H 
+    3    H
+    4    H 
+    5    C  
+    6    H
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMTYPE      central
+  FPRINT
+
+#*ENERGETICS
+
+*OPTIMIZATION
+
+  PRINT
+  SCALE        0.45
+  DLX2         0.0001
+  NITER        50
+
+
+# end of general section
+
+*REACT1
+
+  GEOM
+   2    2.040000   0.000000   0.000000
+   3   -1.020000   0.000000   1.767000
+   4   -1.020000   0.000000  -1.767000
+   5    0.000000   0.000000   0.000000
+  END
+
+  CONSTANT
+   2    y   z
+   3    y 
+   5    x   y   z 
+  END
+
+#parameters for optimizing - 
+
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+
+*REACT2
+
+  GEOM
+   1    0.000000  30.000000   0.000000
+   6    0.000000  31.402      0.000000
+  END
+
+  SPECIES    LINRP
+  LINAXIS   y-axis
+
+  CONSTANT
+   1    x   y   z
+   6    x   z
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD1
+
+  GEOM
+   1    2.067300   0.000000   0.000000
+   2   -0.689060   1.949080   0.000000 
+   3   -0.689060  -0.97459    1.68793 
+   4   -0.68906   -0.97459   -1.687930 
+   5    0.000000   0.000000   0.000000 
+  END
+
+  CONSTANT
+   1    y   z
+   2    z
+   5    x   y   z
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD2
+
+
+  STATUS  2
+
+  GEOM
+   6   32.000000   0.000      0.000000
+  END
+
+
+#parameters for optimizing -
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES   ATOMIC
+
+# end of prod2 section
+
+
+*START
+
+
+  GEOM
+   1    2.398      0.000000   0.000000
+   2   -0.605     -1.978      0.059
+   3   -0.605      1.04       1.683
+   4   -0.605      0.938     -1.743
+   5    0.000000   0.000000   0.000000
+   6    4.228      0.0        0.0
+  END
+
+  CONSTANT
+   1    y   z
+   5    x   y   z
+   6    z
+  END
+
+#parameters for optimizing -
+
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES   NONLINTS
+
+# end of start section
+
+
+*PATH
+
+   SCALEMASS     1.777208
+   SSTEP         0.047
+   NSTEPS        50000
+   INH           1
+   CURV          dgrad
+   IDIRECT       1
+   SIGN          reactant
+
+   RPM           ES1
+   
+   ES1OPT
+     delta2     0.072 
+     diffd      0.082
+   END
+
+   SRANGE
+      slp     0.8
+      slm    -1.3
+   END
+ 
+  # end of path section
+
+*TUNNEL
+
+  ZCT
+
+  SCTOPT
+    spline
+  END
+
+  EMIN         29.0
+
+  QUAD 
+     nqe        30 
+     nqth       40
+  END
+
+  # end of tunnel section
+
+*RATE
+
+  FORWARDK
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  CVT
+
+  TEMP
+    200.
+    300.
+  END
+
+  GSPEC
+     smin   -0.30
+     smax    0.25
+  END

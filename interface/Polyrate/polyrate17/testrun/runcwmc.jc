@@ -1,0 +1,18 @@
+#!/bin/csh -f
+#
+# C shell script to run all cwmc testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/cwmc
+#
+cd $wrkdir
+#
+./cwmctr1.jc
+./cwmctr2.jc
+./cwmctr3.jc
+#
+echo
+echo "cwmc testruns completed"
+#
+#end of runcwmc.jc
+

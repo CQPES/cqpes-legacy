@@ -1,0 +1,179 @@
+*General
+
+  TITLE
+ OH + O -> HO2: Melius/Blint pot-MorseI-No SP-MuVT/US-Euler/No Stb; 
+ Test run ho2tr2
+  END
+
+  ATOMS
+    1    H 
+    2    O 
+    3    O
+  END
+
+  INPUNIT AU
+
+*SECOND
+
+  NUMSTEP      0.0001
+  FPRINT
+
+*OPTIMIZATION
+
+  DLX2         0.0001
+
+*REACT1
+
+  GEOM
+   1   -1.846000   0.000000   0.000000
+   2    0.000000   0.000000   0.000000
+  END
+
+  SPECIES   linrp
+  LINAXIS  x-axis
+
+  CONSTANT
+   1    y   z
+   2    x   y   z
+  END
+
+  MORSE
+  MORMODEL     morsei
+  DEMIN        0.155900
+  NOPROJECT
+
+  ELEC
+    2   0.0
+    2   0.000637887
+  END
+
+# end of react1 section
+
+*REACT2
+
+  STATUS  2
+
+  GEOM
+   3     50.0000  0.000000    0.000000
+  END
+
+  SPECIES   ATOMIC
+
+  ELEC
+    5   0.0
+    3   0.00072218
+    1   0.00103201
+  END
+
+# end of react2 section
+ 
+*PROD1
+
+  GEOM
+   1   -0.449774   1.790639   0.000000
+   2    0.000000   0.000000   0.000000 
+   3    2.522786   0.000000   0.000000
+  END
+
+  CONSTANT
+   1    z
+   2    x   y   z
+   3    y   z
+  END
+
+  MORSE
+  MORMODEL     morsei
+  DEMIN        0.155900
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+*START
+
+  STATUS  2 
+
+  GEOM
+   1   -5.653000   1.783000   0.000000
+   2   -5.751000  -0.059000   0.000000
+   3    6.107000   0.053000   0.000000
+  END
+
+  MORSE   
+  MORMODEL     morsei
+  DEMIN        0.155900
+  SPECIES       nonlints
+  NOPROJECT
+
+  ELEC
+    2   0.0
+  END
+
+*PATH
+
+   NOSADDLE    
+   firststep     gradi
+   SCALEMASS     8.243981
+   SSTEP         0.0001
+   NSTEPS        99999
+   RPM           ESD
+   INH           310
+   CURV          dgrad
+   SIGN          product
+   COORD curv1
+
+#  EXFIRST
+#     exprod
+#     exnstep    38
+#     exstep     0.10
+#     exalpha    0.5
+#  END
+
+   SRANGE
+      slp     7.5
+      slm     0.0
+   END
+     
+*TUNNEL
+
+  ZCT
+  SCT
+
+  QUAD
+    nqe        30
+    nqth       30
+  END
+
+
+*RATE
+
+  BOTHK
+  REVKEXP      15
+  SIGMAF       1
+  SIGMAR       1
+  TST
+  CVT
+# ICVT
+  muVT
+  US
+  EDGEOK
+  PRDELG
+
+  MUVTOPT
+   niter      30
+  END
+
+  TEMP
+    250.
+    500.
+  END
+  
+  EACT
+    250.   500. 
+  END
+
+  ANALYSIS
+    250.
+    500.
+  END

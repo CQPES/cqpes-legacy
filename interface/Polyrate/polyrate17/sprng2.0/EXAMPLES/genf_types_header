@@ -1,0 +1,4 @@
+C/* This file is created by Makefile in SRC and incorporated in examples */
+C/* with the purpose of displaying generators names  and corresponding   */
+C/* numerals.                                                            */
+        print *, 'Evailable generators; use corresponding numeral:'

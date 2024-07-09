@@ -1,0 +1,41 @@
+C***********************************************************************
+C  DATE
+C***********************************************************************
+C
+      SUBROUTINE DATE (IDATE)
+C
+C   This is a machine-specific subprogram that writes the date and 
+C   time to a file linked to FORTRAN unit IO.
+C
+C   Machine: Silicon Graphics Workstations
+C
+      CHARACTER IDATE*9
+C                  
+      CALL FDATE(IDATE)
+C
+      RETURN
+      END
+C
+C***********************************************************************
+C  DATTIM
+C***********************************************************************
+C
+      SUBROUTINE DATTIM (IO)
+C
+C     VERSION FOR SILICON GRAPHICS COMPUTERS
+C     WRITE DATE AND TIME TO DEVICE IO
+C     CALLED BY:
+C                MAIN,FINOUT,RESTOR,RPHSET,TABLE
+C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      CHARACTER *9 TODAY
+C                   
+      CALL DATE(TODAY)
+      WRITE(IO,1100) TODAY
+C
+      RETURN
+C
+ 1100 FORMAT(1X,A9)
+C
+      END
+C

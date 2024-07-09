@@ -1,0 +1,157 @@
+*General
+
+  TITLE
+   CH3 + H-H -> CH4 + H Conventional TST - Data input from Unit 40 
+   QCISD/6-311G(d,p) Energies, Frequencies and Vmep (scaled by 0.86)
+   SIGMAF =4 ( CH3 PLANAR)
+  END
+
+  ATOMS
+    1    C 
+    2    H 
+    3    H
+    4    H 
+    5    H  
+    6    H
+  END
+
+  INPUNIT AU
+
+*ENERGETICS
+   POTENTIAL   unit40
+
+ *SECOND
+ 
+   FPRINT
+   NUMTYPE      central
+
+*REACT1
+
+  STATUS  2
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   2.046574
+   3    1.772385   0.000000  -1.023287
+   4   -1.772385   0.000000  -1.023287
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    y
+  END
+
+  ELEC
+    2   0.0
+  END
+
+
+*REACT2
+
+  STATUS  2
+
+  GEOM
+   5    0.000000  30.000000   0.000000
+   6    0.000000  31.404067   0.000000
+  END
+
+  CONSTANT
+   1    x   y   z
+   6    x   z
+  END
+
+  ELEC
+    1   0.0
+  END
+
+  SPECIES    LINRP
+  LINAXIS   y-axis
+ 
+
+*PROD1
+
+  STATUS  2
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   2.065471 
+   3    1.947372   0.000000  -0.688415
+   4   -0.973686  -1.686473  -0.688415
+   5   -0.973686   1.686473  -0.688415
+  END
+
+  CONSTANT
+   1    x   y   z
+   2    x   y
+   3    y
+  END
+
+  ELEC
+    1   0.0
+  END
+
+
+*PROD2
+
+  STATUS  2
+
+  GEOM
+   6  -15.102738  26.158701 -10.677688
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES  ATOMIC
+
+*START
+
+  STATUS  2
+
+  GEOM
+   1    0.000000   0.000000   0.000000
+   2    0.000000   0.000000   2.057913
+   3    1.871577   0.000000  -0.855689
+   4   -0.935788  -1.620833  -0.855689
+   5   -1.275994   2.210086  -0.622108
+   6   -2.092979   3.625178  -1.020435
+  END
+
+  CONSTANT
+   1    x   y   z
+   5    x   y
+   6    y
+  END
+
+  ELEC
+    2   0.0
+  END
+
+  SPECIES    NONLINTS
+
+*RATE
+
+  BOTHK
+  SIGMAF       4
+  SIGMAR       4
+  TST
+  NOCVT
+
+  TEMP
+    298.
+    300.
+    372.
+    400.
+    424.
+    500.
+    600.
+    667.
+   1000.
+   1340.
+   1500.
+   1550.
+  END
+
+

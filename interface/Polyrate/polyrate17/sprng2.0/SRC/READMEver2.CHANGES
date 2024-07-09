@@ -1,0 +1,48 @@
+Chris S.: 7 June 1999
+Added a new version of 'insertlib' with a name 'insertcheck'.  
+        'insertlib' to be removed.
+
+Added new versions of 
+		check_gen.c
+		check_gen_sipmle.c
+		check_gen_ptr.c
+		timing.c
+Makefile: moved Makefile to Makefile.old and put new version of Makefile.
+-----------------------------------------------------------------------------
+June 9, 1999: Chris S.
+	Created a modification of --
+		check_genf.F          	---> 	check_genfM.F
+		check_genf_simple.F	--->	check_genf_simpleM.F
+		check_genf_ptr.F 	--->	check_genf_ptrM.F 
+	Since I don't know how to read arguments from the command line for 
+FORTRAN executable, created files --
+		gen0.data containing 0 (gen type ) and content of lfg.data
+		gen1.data  "         1  "           "    "     "  lcg.data
+and so on 	gen2.data, gen3.data, gen4.data.
+Run command:  	./check_genf_ptrM < gen3.data  
+	or	./check_genf_ptrM < gen0.data 2> /dev/null 
+
+  Trouble with unpack_sprng in Fortran files:
+   First call to 'unpack_sprng' goes alwas smoothly but second call
+inside the function 'check_errors' creates "Segmentation fault (core dumped)"
+This second time 'unpack_sprng' ---> 'funpack_rng' is called with argument 's'
+being an array of characters '0'.  Such setup is working with the ver 1 of 
+SPRNG.
+Commented troubled parts of source code. Runs smoothly now.
+This has to be fixed!!!!!!!!!!!!!!!!!!!
+-----------------------------------------------------------
+June 11, 1999: Chris S. The above problem from June9 has been fixed. The core 
+cause has been fixed by Mike Z. All 'check_gen...' files have been modified.  
+Two new scripts 'inserttimecheck' and 'insertcheck' have been added.  
+Now 'inserttimecheck' producess files of the form {n}, as
+	gen0_lfg ={0}, gen1_lcg (and similar) and the script 'timesprng'.
+Now 'insertcheck' producess data files by augmenting lfg.data, lcg.data,...,
+ from the top with the corresponding generator number (0,1,2,3,4,5).   
+Use the command 'head file" or 'more file' to see it.
+
+Makefile has been modified in parts related to timesprng and checksprng.
+-------------------------------------------------------------------------------
+June 14, 1999, Chris S. 
+make.LINUX has bee prepared to use MPI, exept deleting #'s. Path has to be set 
+correctly.
+-------------------------------------------------------

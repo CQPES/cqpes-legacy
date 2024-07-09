@@ -1,0 +1,28 @@
+*ISPEGEN            # unit fu51 input, calculation done with MP2/6-31G**
+
+ MEPTYPER  WELL    # reactant well
+ MEPTYPEP  WELL    # product well
+
+ ENESAD        4.199
+ ENERXN      -10.849
+
+ RCINFO
+    SRC       -7.0027
+    ENERCS    -10.973
+    ENERCA    -10.810
+ END
+
+ PCINFO
+    SPC        7.0027 
+    ENEPCS    -10.973
+    ENEPCA    -10.810
+ END
+
+*POINT
+  SMEP     -0.2027
+  VMEP      4.091 
+
+*POINT
+  SMEP      0.2027
+  VMEP      4.091
+

@@ -1,0 +1,19 @@
+#!/bin/csh -f
+#
+# C shell script to run all h3 testrun
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/h3
+#
+cd $wrkdir
+#
+./h3tr1.jc
+./h3tr2.jc
+./h3tr3.jc
+./h3tr4.jc
+#
+echo
+echo "h3 testruns completed"
+#
+#end of runh3
+

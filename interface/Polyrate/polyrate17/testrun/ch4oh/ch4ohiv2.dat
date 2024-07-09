@@ -1,0 +1,51 @@
+*VTSTIC           # unit fu50 input for ch4ohtr1 test run in POLYRATE 6.0
+
+ ENESAD    7.3651 # the classical barrier height in kcal/mol
+
+ ENERXN  -13.2725 # the exerogicity in kcal/mol
+
+ ENERXN  -13.2725 # the exerogicity in kcal/mol
+
+ SMEP      0.005
+
+ EMEP      7.360     # kcal/mol
+
+ DETMI
+   8.7276E+12  # Det I of CH4
+   5.8313E+03  # Det I of OH
+   3.3483E+15  # Det I of saddle point
+   2.9240E+12  # Det I of CH3
+   3.5279E+11  # Det I of H2O
+   3.3410E+15  # Det I of extra point on the MEP
+ END
+
+ HRRMI    ALL     # Correct the reduced moment of inertia of hindered rotation
+
+ RMITS
+       854.44     # Reduced moment of inertia of TS in a.u.
+ END
+ 
+ FREQIMAG  1830.0 # the imaginary frequency of saddle point in cm-1
+
+ RCFREQA
+    3759.0   3093.0   3216.0   3216.0   3216.0
+    1600.0   1600.0   1358.0   1358.0   1358.0
+       0.0      0.0      0.0      0.0
+ END
+
+ PCFREQA
+    3923.0   3795.0   3372.0   3372.0   3201.0
+    1663.0   1450.0   1450.0    501.0      0.0
+       0.0      0.0      0.0      0.0      
+ END
+
+ SADFREQ
+    3748.0   3130.0   3259.0   3255.0   1414.0
+    1521.0   1494.0   1298.0   1206.0    933.0
+     769.0    357.0    316.0     40.0
+ END
+
+ MEPFREQ
+    3746.28 3263.27 3260.98 3134.69 1519.32 1492.04 1416.50
+    1295.13 1201.00  932.74  745.87   374.97 328.33 -60.32
+ END

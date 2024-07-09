@@ -1,0 +1,20 @@
+Manual Compililing
+
+Serial examples: 
+gcc -o sprngMY sprng.c -L../lib -lsprng -lm -I../include -lgmp -I.
+
+g77 -o sprngfMY sprngf.F -L../lib -lsprng -lm -I../include -lgmp -I.
+
+
+
+MPI examples (MPICH inplementation of MPI):
+mpicc -o sprng_mpiMy sprng_mpi.c -L../lib -lsprng -lm -I../include -lgmp -I.
+
+mpif77 -o sprngf_mpiMy sprngf_mpi.F -L../lib -lsprng -lm -I../include -lgmp -I.
+Only mpif77 requiries explicit "-I.".
+
+mpiCC -o sprngC_mpiMy sprngC_mpi.C -L../lib -lsprng -lm -I../include -lgmp -I.
+
+Running  parallel examples (MPICH implementation of MPI):
+mpirun -np 4 executable_file
+where 4 is for four nodes (simulated) 

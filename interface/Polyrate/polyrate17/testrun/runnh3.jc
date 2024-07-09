@@ -1,0 +1,17 @@
+#!/bin/csh -f
+#
+# C shell script to run all nh3 testruns
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/nh3
+#
+cd $wrkdir
+#
+./nh3tr1.jc
+./nh3tr2.jc
+#
+echo
+echo "nh3 testruns completed"
+#
+#end of runnh3.jc
+

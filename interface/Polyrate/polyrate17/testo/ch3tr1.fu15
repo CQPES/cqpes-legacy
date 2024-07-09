@@ -1,0 +1,12 @@
+ The following are VRC-VTST calculation results.
+
+ Summary of forward rate constants (cm**3 molecule-1 s-1) :
+
+    T(K)          CVT      muVT(E)   muVT(E,J)
+   298.00       5.73E-10  3.74E-10  3.71E-10
+   350.00       4.99E-10  3.30E-10  3.30E-10
+   400.00       4.36E-10  3.02E-10  3.01E-10
+   600.00       3.16E-10  1.58E-10  1.87E-10
+   800.00       2.80E-10  1.51E-10  1.49E-10
+   900.00       2.59E-10  1.49E-10  1.47E-10
+  1000.00       2.50E-10  1.47E-10  1.45E-10

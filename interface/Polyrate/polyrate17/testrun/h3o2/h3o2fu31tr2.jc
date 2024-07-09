@@ -1,0 +1,50 @@
+#!/bin/csh -f
+#
+# Usage h2o2trr1.jc [working_directory]
+set wrkdir = `pwd`
+set nproc  = 1
+set name = h3o2fu31tr2
+set polydir = `cat ~/.poly_path`
+set version = `cat ~/.poly_ver`
+set exedir  = $polydir/exe
+#
+if ($nproc == 1) then
+  set exe     = $exedir/polyrate$version.dum.serial.exe
+else
+  set exe     = $exedir/polyrate$version.dum.mpi.exe
+endif
+set dscript = $polydir/script
+set potdir  = $polydir/poten
+set srcdir  = $polydir/src
+cd $srcdir
+gmake DUMS
+cd $wrkdir
+#
+date >> $name.time
+#
+rm poly.fu* >& /dev/null
+#
+# Copy the data files to POLYRATE filenames. 
+#
+cp $name.dat poly.fu5
+cp $name.fu31 poly.fu31
+# Write sysem message to .time file
+#
+if ($nproc == 1) then
+  (time $exe) >>& $name.time
+else
+  (time mpirun -v -np $nproc $exe) >>& $name.time
+endif
+
+echo " " >> $name.time
+# 
+# Copy the POLYRATE output files to appropriate filenames
+#
+rm poly.fu5 
+mv poly.fu6  $name.fu6
+mv poly.fu15 $name.fu15
+mv esp.fu61  $name.61 
+rm poly.fu31
+#
+# End of script
+exit

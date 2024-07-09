@@ -1,0 +1,14 @@
+if [ -f $5 ]
+then
+
+  if ! [ -f ../gen$6_$1.data ]
+  then
+    echo $6 > ../gen$6_$1.data
+    cat $1/$1.data >> ../gen$6_$1.data  
+  fi
+
+  echo echo >> $2
+  echo echo $1: $3 >> $2
+  echo "./$4 < gen$6_$1.data 2> /dev/null" >> $2
+
+fi

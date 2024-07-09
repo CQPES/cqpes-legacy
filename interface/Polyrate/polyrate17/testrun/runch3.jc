@@ -1,0 +1,16 @@
+#!/bin/csh -f
+#
+# C shell script to run all ch3 testrun
+#
+set polydir = `cat ~/.poly_path`
+set wrkdir = $polydir/testrun/ch3
+#
+cd $wrkdir
+#
+./ch3tr1.jc
+#
+echo
+echo "ch3 testruns completed"
+#
+#end of runch3
+
