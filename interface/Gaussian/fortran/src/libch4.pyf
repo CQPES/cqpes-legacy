@@ -1,0 +1,19 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module libch4 ! in 
+    interface  ! in :libch4
+        subroutine init ! in :libch4:libch4.f90
+            use nnparam
+        end subroutine init
+        subroutine calc_energy(coords,natom,vpes) ! in :libch4:libch4.f90
+            real(kind=8) dimension(natom,3),intent(in) :: coords
+            integer, optional,intent(in),check(shape(coords, 0) == natom),depend(coords) :: natom=shape(coords, 0)
+            real(kind=8) intent(out) :: vpes
+        end subroutine calc_energy
+    end interface 
+end python module libch4
+
+! This file was auto-generated with f2py (version:1.24.3).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e
