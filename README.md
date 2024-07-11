@@ -245,7 +245,7 @@ After running, the max absolute error, mean absolute error (MAE), mean squared e
 | 0 | train   | 0.334654 | 0.702226 | 0.837989 |
 | 1 | valid   | 0.371523 | 1.407177 | 1.186245 |
 | 2 | test    | 0.339292 | 0.829823 | 0.910946 |
-| 3 | total   | 0.336729 | 0.336729 | 0.580283 |
+| 3 | total   | 0.336729 | 0.336729 | 0.862469 |
 
 The error distribution will be plotted in a scattering figure.
 
