@@ -2,6 +2,8 @@
 
 This package is a Python implementation of potential energy surface (PES) fitting with permutational invariant polynomials neural network (PIP-NN).
 
+Paper: [CQPES: A GPU-Aided Software Package for Developing Full-Dimensional Accurate Potential Energy Surfaces by Permutation-Invariant-Polynomial Neural Network](https://doi.org/10.3390/chemistry7060201)
+
 ## Installation
 
 Here is an environment file `env.yml` inside the main directory, simply use the command below to create a conda virtual environment.
@@ -314,3 +316,4 @@ The exported models are sufficient for examples in [`interface`](https://github.
 (3) Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. _J. Chem. Phys._ **2013**, _139_ (5). https://doi.org/10.1063/1.4817187.
 
 (4) Li, J.; Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. II. Four-Atom Systems. _J. Chem. Phys._ **2013**, _139_ (20). https://doi.org/10.1063/1.4832697.
+
