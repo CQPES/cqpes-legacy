@@ -1,7 +1,0 @@
-{
-    "xyz": "/home/jhli/Developer/cqpes-legacy/rawdata/CH4.xyz",
-    "energy": "/home/jhli/Developer/cqpes-legacy/rawdata/CH4_CCSD-T.dat",
-    "ref_energy": null,
-    "alpha": 1.0,
-    "output": "/home/jhli/Developer/cqpes-legacy/data"
-}
