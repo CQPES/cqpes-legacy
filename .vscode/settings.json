@@ -1,6 +1,5 @@
 {
-    "files.associations": {
-        "*.m": "matlab",
-        "stdlib.h": "c"
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
     }
 }
