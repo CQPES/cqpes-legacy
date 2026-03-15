@@ -7,9 +7,6 @@ from typing import Optional, Tuple
 
 @dataclass
 class PrepareConfig:
-    # f2py so
-    msa: str = field(metadata={"must_exist": True})
-
     # path
     xyz: str = field(metadata={"must_exist": True})
     energy: str = field(metadata={"must_exist": True})
@@ -71,6 +68,7 @@ class PrepareConfig:
 class PrepareSummary:
     n_samples: int
     n_atoms: int
+    alpha: float
     n_pip: int
     ref_energy: float
     v_range: Tuple[float, float]
@@ -85,6 +83,7 @@ class PrepareSummary:
 
         print(f"  {'Samples:':<16} {self.n_samples}")
         print(f"  {'Atoms:':<16} {self.n_atoms}")
+        print(f"  {'Morse Alpha:':<16} {self.alpha:<16.4f}")
         print(f"  {'PIP Dimension:':<16} {self.n_pip}")
 
         print(f"  {'-' * (WIDTH - 4)}")

@@ -8,6 +8,7 @@ import numpy as np
 @dataclass
 class CQPESData:
     xyz: np.ndarray  # (N, Natoms, 3)
+    alpha: float
     p: np.ndarray  # (N, Npip)
     V: np.ndarray  # (N,)
     ref_energy: float
@@ -18,7 +19,6 @@ class CQPESData:
     V_max: Optional[float] = None
 
     def __post_init__(self) -> None:
-        # 1. 强一致性校验
         n_samples = self.p.shape[0]
         if self.V.shape[0] != n_samples:
             raise ValueError(
@@ -90,6 +90,7 @@ class CQPESData:
 
         return cls(
             xyz=_load("xyz.npy"),
+            alpha=_load("alpha.npy"),
             p=_load("p.npy"),
             V=_load("V.npy"),
             ref_energy=float(_load("ref_energy.npy")),
@@ -108,6 +109,7 @@ class CQPESData:
 
         payload = {
             "xyz.npy": self.xyz,
+            "alpha.npy": self.alpha,
             "p.npy": self.p,
             "V.npy": self.V,
             "ref_energy.npy": np.array(self.ref_energy),
@@ -128,6 +130,7 @@ class CQPESData:
     ) -> "CQPESData":
         return CQPESData(
             xyz=self.xyz[index],
+            alpha=self.alpha,
             p=self.p[index],
             V=self.V[index],
             ref_energy=self.ref_energy,
