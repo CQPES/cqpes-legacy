@@ -12,6 +12,8 @@ exp/
 model_*/
 *.png
 *.csv
+*.txt
+*.traj
 
 # Gaussian
 fort.7

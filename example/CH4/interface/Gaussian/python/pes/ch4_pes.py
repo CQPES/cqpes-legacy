@@ -14,10 +14,9 @@ import json
 
 import tensorflow as tf
 from gau_pes import BasePES
+from msa import basis
 from scipy import constants as C
 from scipy.spatial import distance
-
-from msa import basis
 
 _NUM_ATOMS = 5
 
