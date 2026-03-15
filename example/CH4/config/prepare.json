@@ -1,5 +1,4 @@
 {
-    "msa": "msa.cpython-310-darwin.so",
     "xyz": "rawdata/CH4.xyz",
     "energy": "rawdata/CH4_CCSD-T.dat",
     "ref_energy": null,
