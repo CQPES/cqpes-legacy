@@ -6,7 +6,7 @@ from typing import List, cast
 import numpy as np
 from ase import Atoms
 from ase.io import read
-from scipy import constants as C
+from ase.units import Hartree
 from scipy.spatial import distance
 
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
@@ -52,9 +52,7 @@ def v_calc_V(
     energy_list: np.ndarray,
     ref_energy: float,
 ) -> np.ndarray:
-    V_list = (energy_list - ref_energy) * C.physical_constants[
-        "Hartree energy in eV"
-    ][0]
+    V_list = (energy_list - ref_energy) * Hartree
 
     return V_list
 
