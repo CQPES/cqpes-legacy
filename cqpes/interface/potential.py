@@ -5,10 +5,11 @@ from typing import List, Literal, Optional, Union
 import numpy as np
 import tensorflow as tf
 from ase import Atoms
-from scipy import constants as C
+from ase.units import Bohr, Hartree
 from scipy.spatial.distance import pdist
 
 from cqpes.pipeline.prepare import v_calc_p
+from cqpes.types.data import CQPESData
 from cqpes.types.train import TrainConfig
 from cqpes.utils.model import build_network
 from cqpes.utils.msa import load_msa_so
@@ -57,14 +58,14 @@ class CQPESPot:
             self.p_min = np.load(os.path.join(self.workdir, "p_min.npy"))[1:]
             self.p_max = np.load(os.path.join(self.workdir, "p_max.npy"))[1:]
 
-            self.V_min = float(np.load(os.path.join(self.workdir, "V_min.npy")))
-            self.V_max = float(np.load(os.path.join(self.workdir, "V_max.npy")))
+            self.V_min = np.load(os.path.join(self.workdir, "V_min.npy")).item()
+            self.V_max = np.load(os.path.join(self.workdir, "V_max.npy")).item()
 
-            self.alpha = float(np.load(os.path.join(self.workdir, "alpha.npy")))
+            self.alpha = np.load(os.path.join(self.workdir, "alpha.npy")).item()
 
-            self.ref_energy = float(
-                np.load(os.path.join(self.workdir, "ref_energy.npy"))
-            )
+            self.ref_energy = np.load(
+                os.path.join(self.workdir, "ref_energy.npy")
+            ).item()
 
         except Exception as e:
             raise RuntimeError(
@@ -133,29 +134,31 @@ class CQPESPot:
 
         # 1. calculate p
         p_raw = v_calc_p(
-            xyz_list=xyz_arr, alpha=self.alpha, basis=self.msa.basis
+            xyz_list=xyz_arr,
+            alpha=self.alpha,
+            basis=self.msa.basis,
         )
-        p_features = p_raw[:, 1:]
+
+        p_feat = p_raw[:, 1:]
 
         # 2. p -> X in [-1, 1]
-        x_scaled = np.nan_to_num(
-            2 * (p_features - self.p_min) / (self.p_max - self.p_min) - 1
-        )
+        x_scaled = CQPESData.rescale(p_feat, self.p_min, self.p_max)
 
         # 3. X -> y
         y_scaled = self.net.predict(
-            x_scaled, verbose=0, batch_size=len(xyz_arr)
+            x_scaled,
+            batch_size=4096,
+            verbose=0,
         )
 
         # 4. y in [-1, 1] -> V
-        V_eV = (y_scaled + 1.0) * (self.V_max - self.V_min) / 2.0 + self.V_min
+        V_eV = CQPESData.unscale(y_scaled, self.V_min, self.V_max)
 
         results = V_eV.flatten()
 
         # 5. to Hartree
         if return_au:
-            hartree_to_eV = C.physical_constants["Hartree energy in eV"][0]
-            results = (results / hartree_to_eV) + self.ref_energy
+            results = (results / Hartree) + self.ref_energy
 
         if results.size == 1 and not isinstance(xyz, list):
             return results.item()
@@ -165,15 +168,21 @@ class CQPESPot:
     def get_forces(
         self,
         xyz: Union[np.ndarray, List[Atoms], Atoms],
+        return_au: bool = False,
         force_mode: Optional[str] = None,
         **kwargs,
     ) -> np.ndarray:
         target_mode = (force_mode or self.force_mode).lower()
 
         if target_mode == "analytical":
-            return self.get_forces_analytical(xyz)
+            forces = self.get_forces_analytical(xyz)
         else:
-            return self.get_forces_numerical(xyz, **kwargs)
+            forces = self.get_forces_numerical(xyz, **kwargs)
+
+        if return_au:
+            forces *= Bohr / Hartree
+
+        return forces
 
     def get_forces_numerical(
         self,
@@ -189,6 +198,7 @@ class CQPESPot:
         displaced_batch = np.zeros((total_evals, n_atoms, 3), dtype=np.float64)
 
         idx = 0
+
         for c in range(n_configs):
             pos_ref = xyz_arr[c]
             for i in range(n_atoms):
@@ -223,22 +233,18 @@ class CQPESPot:
         n_atoms = xyz_arr.shape[1]
         n_cart = 3 * n_atoms
 
-        # ==========================================================
-        # PHASE 1: Neural Network Batch Gradient (Out of loop)
-        # ==========================================================
-        # 1. calculate p (Batched)
+        # 1. calculate p
         p_raw = v_calc_p(
-            xyz_list=xyz_arr, alpha=self.alpha, basis=self.msa.basis
+            xyz_list=xyz_arr,
+            alpha=self.alpha,
+            basis=self.msa.basis,
         )
+
         p_feat = p_raw[:, 1:]
 
-        # 2. Prepare Tensor and track gradients for the entire batch
-        X_tensor = tf.convert_to_tensor(
-            np.nan_to_num(
-                2 * (p_feat - self.p_min) / (self.p_max - self.p_min) - 1
-            ),
-            dtype=tf.float64,
-        )
+        # 2. prepare tensor and track gradients for the entire batch
+        X_numpy = CQPESData.rescale(p_feat, self.p_min, self.p_max)
+        X_tensor = tf.convert_to_tensor(X_numpy, dtype=tf.float64)
 
         with tf.GradientTape() as tape:
             tape.watch(X_tensor)
@@ -255,7 +261,7 @@ class CQPESPot:
         V_scale = (self.V_max - self.V_min) / 2.0
         p_scale = 2.0 / (self.p_max - self.p_min)
 
-        # (n_configs, n_features)
+        # (N_configs, N_features)
         dV_dp_batch = tf.convert_to_tensor(grad_raw).numpy() * V_scale * p_scale
 
         results_forces = np.zeros((n_configs, n_atoms, 3), dtype=np.float64)
@@ -270,6 +276,7 @@ class CQPESPot:
             msa_drdx = np.zeros((n_cart, n_bonds), dtype=np.float64, order="F")
 
             k = 0
+
             for row in range(n_atoms - 1):
                 for col in range(row + 1, n_atoms):
                     r = r_vec[k]
@@ -277,6 +284,7 @@ class CQPESPot:
                         unit_vec = (pos[row] - pos[col]) / r
                         msa_drdx[3 * row : 3 * row + 3, k] = unit_vec
                         msa_drdx[3 * col : 3 * col + 3, k] = -unit_vec
+
                     k += 1
 
             # 2. dist vec -> morse -> mono -> poly
@@ -286,11 +294,16 @@ class CQPESPot:
 
             # 3. dbemsav
             forces_flat = np.zeros(n_cart)
+
             for j in range(n_cart):
                 # fortran 1-based indexing
                 dp_dr_j = self.msa.gradient.dbemsav(
-                    msa_drdx, msa_mono, msa_poly, j + 1
+                    msa_drdx,
+                    msa_mono,
+                    msa_poly,
+                    j + 1,
                 )
+
                 forces_flat[j] = -np.dot(dV_dp, dp_dr_j[1:])
 
             results_forces[i] = forces_flat.reshape(n_atoms, 3)
@@ -303,9 +316,9 @@ class CQPESPot:
     def check_forces(
         self,
         xyz: Union[np.ndarray, List[Atoms], Atoms],
-        delta: float = 1e-4,
-        atol: float = 1e-5,
-        rtol: float = 1e-3,
+        delta: float = 0.01,
+        atol: float = 1.0e-05,
+        rtol: float = 1.0e-03,
         verbose: bool = True,
     ) -> bool:
         f_ana = self.get_forces(xyz, force_mode="analytical")

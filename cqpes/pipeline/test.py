@@ -15,6 +15,8 @@ from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+tf.config.set_visible_devices([], "GPU")
 tf.keras.backend.set_floatx("float64")
 
 
@@ -79,10 +81,8 @@ def run_test(workdir_path: str):
     model_wrapper.load_weights(best_ckpt_path)
 
     # errors
-    V_pred_norm = model_wrapper(X_raw).numpy()
-    V_pred = (V_pred_norm + 1) * (
-        params["V_max"] - params["V_min"]
-    ) / 2 + params["V_min"]
+    V_pred_norm = model_wrapper.predict(X_raw, batch_size=4096)
+    V_pred = CQPESData.unscale(V_pred_norm, params["V_min"], params["V_max"])
     errors_meV = (V_pred - V_true) * 1000.0
 
     # 5. summary
@@ -92,7 +92,7 @@ def run_test(workdir_path: str):
 
 
 def _export_metrics(V_true, V_pred, indices: dict, file_prefix: str) -> None:
-    csv_filename = f"metrics_{file_prefix}.csv"
+    csv_filename = f"{file_prefix}_metrics.csv"
     stats = []
 
     eval_indices = {**indices, "Total": np.arange(len(V_true))}
@@ -117,7 +117,7 @@ def _export_metrics(V_true, V_pred, indices: dict, file_prefix: str) -> None:
 def _plot_error_scatter(
     V_true, errors_meV, indices: dict, file_prefix: str
 ) -> None:
-    plot_filename = f"scatter_{file_prefix}.png"
+    plot_filename = f"{file_prefix}_scatter.png"
     print(f"  [{'PLOT':^10}] Generating scatter plot...")
 
     colors = {"Train": "b", "Valid": "g", "Test": "r"}
@@ -140,17 +140,21 @@ def _plot_error_scatter(
         ax.set_ylabel(r"$\mathrm{Error \ (meV)}$")
 
         ax.legend(loc="upper right", frameon=True)
+
         plt.savefig(plot_filename, bbox_inches="tight")
+        plt.close(fig)
 
         print(f"  [{'SAVE':^10}] Scatter plot saved as: {plot_filename}")
 
 
 def _plot_error_dist(errors_meV, file_prefix: str) -> None:
-    plot_filename = f"dist_{file_prefix}.png"
+    plot_filename = f"{file_prefix}_hist.png"
     print(f"  [{'PLOT':^10}] Generating histogram...")
 
     abs_err = np.abs(errors_meV)
-    edges = np.arange(0.0, 5.5, 0.5)
+    max_err = np.ceil(abs_err.max() * 2) / 2
+    bin_width = 0.5 if max_err < 25 else max_err / 50
+    edges = np.arange(0.0, max_err + bin_width, bin_width)
 
     with plt.style.context(["science", "no-latex"]):
         fig, ax = plt.subplots(figsize=(7, 5), dpi=300)
@@ -171,5 +175,6 @@ def _plot_error_dist(errors_meV, file_prefix: str) -> None:
         ax.set_ylabel("Distribution", fontsize=12, fontweight="bold")
 
         plt.savefig(plot_filename, bbox_inches="tight")
+        plt.close(fig)
 
         print(f"  [{'SAVE':^10}] Histogram saved as: {plot_filename}")
