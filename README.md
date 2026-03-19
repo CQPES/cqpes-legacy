@@ -12,20 +12,32 @@ If CQPES helps your work, please cite correctly.
 
 ## Installation
 
-We recommend using a Conda environment to manage dependencies:
+We provide pre-packaged installers including all dependencies (TensorFlow, CUDA, etc.). This is the most stable way to use CQPES.
+
+### Step 1: Deploy the Environment
+
+Download the installer from [Releases](https://github.com/cqpes/cqpes-legacy/releases).
+
+Run the installer:
 
 ```bash
-$ conda env create -n cqpes-env -f env.yml
+# cpu version
+$ bash ./cqpes-cpu-2.0.0-Linux-x86_64.sh
+# cuda version
+$ cat cqpes-cu120-2.0.0-Linux-x86_64.sh.part* > cqpes-cu120-2.0.0-Linux-x86_64.sh
+$ bash ./cqpes-cu120-2.0.0-Linux-x86_64.sh
 ```
 
-Install the cqpes package into your environment:
+### Step 2: Install CQPES
 
 ```bash
-$ conda activate cqpes-env
+$ conda activate /path/to/cqpes-env
+(cqpes-env)$ git clone https://github.com/CQPES/cqpes-legacy.git
+(cqpes-env)$ cd cqpes-legacy
 (cqpes-env)$ pip install -e .
 ```
 
-Verify the installation by typing `cqpes -h` in your terminal.
+### Step 3: Verify the installation
 
 ```bash
 (cqpes-env)$ cqpes -h
@@ -161,12 +173,8 @@ from cqpes import CQPESPot, CQPESCalculator
 
 ## Reference
 
-(1) Xie, Z.; Bowman, J. M. Permutationally Invariant Polynomial Basis for Molecular Energy Surface Fitting via Monomial Symmetrization. _J. Chem. Theory Comput._ **2010**, _6_ (1), 26–34. https://doi.org/10.1021/ct9004917.
-
-(2) Nandi, A.; Qu, C.; Bowman, J. M. Using Gradients in Permutationally Invariant Polynomial Potential Fitting: A Demonstration for CH4 Using as Few as 100 Configurations. _J. Chem. Theory Comput._ **2019**, _15_ (5), 2826–2835. https://doi.org/10.1021/acs.jctc.9b00043.
-
-(3) Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. _J. Chem. Phys._ **2013**, _139_ (5). https://doi.org/10.1063/1.4817187.
-
-(4) Li, J.; Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. II. Four-Atom Systems. _J. Chem. Phys._ **2013**, _139_ (20). https://doi.org/10.1063/1.4832697.
-
-(5) Li, J.; Song, K.; Li, J. CQPES: A GPU-Aided Software Package for Developing Full-Dimensional Accurate Potential Energy Surfaces by Permutation-Invariant-Polynomial Neural Network. _Chemistry (Basel)_ **2025**, _7_ (6), 201. https://doi.org/10.3390/chemistry7060201.
+- (1) Xie, Z.; Bowman, J. M. Permutationally Invariant Polynomial Basis for Molecular Energy Surface Fitting via Monomial Symmetrization. _J. Chem. Theory Comput._ **2010**, _6_ (1), 26–34. https://doi.org/10.1021/ct9004917.
+- (2) Nandi, A.; Qu, C.; Bowman, J. M. Using Gradients in Permutationally Invariant Polynomial Potential Fitting: A Demonstration for CH4 Using as Few as 100 Configurations. _J. Chem. Theory Comput._ **2019**, _15_ (5), 2826–2835. https://doi.org/10.1021/acs.jctc.9b00043.
+- (3) Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. _J. Chem. Phys._ **2013**, _139_ (5). https://doi.org/10.1063/1.4817187.
+- (4) Li, J.; Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. II. Four-Atom Systems. _J. Chem. Phys._ **2013**, _139_ (20). https://doi.org/10.1063/1.4832697.
+- (5) Li, J.; Song, K.; Li, J. CQPES: A GPU-Aided Software Package for Developing Full-Dimensional Accurate Potential Energy Surfaces by Permutation-Invariant-Polynomial Neural Network. _Chemistry (Basel)_ **2025**, _7_ (6), 201. https://doi.org/10.3390/chemistry7060201.
