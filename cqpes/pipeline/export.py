@@ -11,6 +11,9 @@ from natsort import natsorted
 from cqpes.types import TrainConfig
 from cqpes.utils.model import build_network
 
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+tf.config.set_visible_devices([], "GPU")
 tf.keras.backend.set_floatx("float64")
 
 
@@ -34,8 +37,8 @@ def _model2potfit(
     output_dir: str,
     p_min: np.ndarray,
     p_max: np.ndarray,
-    V_min: np.ndarray,
-    V_max: np.ndarray,
+    V_min: float,
+    V_max: float,
 ) -> tuple[str, str]:
     weights_file = os.path.join(output_dir, "weights.txt")
     biases_file = os.path.join(output_dir, "biases.txt")
@@ -70,13 +73,13 @@ def _model2potfit(
         print(f"{act_id:8d}{model.count_params():8d}", file=f)
 
         pdela = 0.5 * (
-            np.concatenate((p_max[1:], V_max.reshape((1,))))
-            - np.concatenate((p_min[1:], V_min.reshape((1,))))
+            np.concatenate((p_max[1:], [V_max]))
+            - np.concatenate((p_min[1:], [V_min]))
         )
 
         pavga = 0.5 * (
-            np.concatenate((p_max[1:], V_max.reshape((1,))))
-            + np.concatenate((p_min[1:], V_min.reshape((1,))))
+            np.concatenate((p_max[1:], [V_max]))
+            + np.concatenate((p_min[1:], [V_min]))
         )
 
         for x in pdela:
@@ -107,8 +110,8 @@ def _model2potfit(
 
 
 def run_export(
-    export_type: Literal["h5", "potfit"],
     workdir_path: str,
+    export_type: Literal["h5", "potfit"],
 ) -> None:
     workdir = os.path.abspath(workdir_path)
 
@@ -123,8 +126,8 @@ def run_export(
     try:
         p_min = np.load(os.path.join(workdir, "p_min.npy"))
         p_max = np.load(os.path.join(workdir, "p_max.npy"))
-        V_min = np.load(os.path.join(workdir, "V_min.npy"))
-        V_max = np.load(os.path.join(workdir, "V_max.npy"))
+        V_min = np.load(os.path.join(workdir, "V_min.npy")).item()
+        V_max = np.load(os.path.join(workdir, "V_max.npy")).item()
     except FileNotFoundError as e:
         print(
             f"\n[ERROR] Physical parameters missing in workdir: {e}",
@@ -135,6 +138,18 @@ def run_export(
 
     # 4. auto detect checkpoint
     h5_files = natsorted(glob.glob(os.path.join(ckpt_dir, "*.h5")))
+
+    if not h5_files:
+        print(
+            f"\n[ERROR] No checkpoints found in {ckpt_dir}",
+            file=sys.stderr,
+        )
+        print(
+            "Did you start training?",
+            file=sys.stderr,
+        )
+        return
+
     best_ckpt = h5_files[-1]
 
     # 5. build model

@@ -17,9 +17,12 @@ _LOG_HEADER = r"""
 
 def print_header(
     module_name: str,
+    no_header: bool = False,
 ) -> None:
-    print(f"{_LOG_HEADER:^80}")
-    print(f"{'CQPES: ChongQing Potential Energy Surface':^80}")
+    if not no_header:
+        print(f"{_LOG_HEADER:^80}")
+        print(f"{'CQPES: ChongQing Potential Energy Surface':^80}")
+
     print()
     print(f"{module_name.upper():^80}")
     print("=" * 80)
