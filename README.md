@@ -1,4 +1,4 @@
-# CQPES Legacy
+# CQPES (ChongQing Potential Energy Surface)
 
 This package is a Python implementation of potential energy surface (PES) fitting with permutational invariant polynomials neural network (PIP-NN).
 
