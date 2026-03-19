@@ -137,7 +137,7 @@ def run_export(
         return
 
     # 4. auto detect checkpoint
-    h5_files = natsorted(glob.glob(os.path.join(ckpt_dir, "*.h5")))
+    h5_files = natsorted(glob.glob(os.path.join(ckpt_dir, "*.weights.h5")))
 
     if not h5_files:
         print(
