@@ -38,37 +38,39 @@ class CQPESData:
             self.p_max = self.p.max(axis=0)
 
         if self.V_min is None:
-            self.V_min = float(self.V.min())
+            self.V_min = self.V.min().item()
 
         if self.V_max is None:
-            self.V_max = float(self.V.max())
+            self.V_max = self.V.max().item()
 
     @staticmethod
     def rescale(
         t: np.ndarray,
-        t_min: Optional[Union[np.ndarray, float]],
-        t_max: Optional[Union[np.ndarray, float]],
+        t_min: Union[np.ndarray, float],
+        t_max: Union[np.ndarray, float],
     ) -> np.ndarray:
-        assert t_min is not None and t_max is not None
-
-        return np.nan_to_num(2 * (t - t_min) / (t_max - t_min) - 1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.nan_to_num(2 * (t - t_min) / (t_max - t_min) - 1)
 
     @staticmethod
     def unscale(
         scaled_t: np.ndarray,
-        t_min: Optional[Union[np.ndarray, float]],
-        t_max: Optional[Union[np.ndarray, float]],
+        t_min: Union[np.ndarray, float],
+        t_max: Union[np.ndarray, float],
     ) -> np.ndarray:
-        assert t_min is not None and t_max is not None
 
         return t_min + (scaled_t + 1) * (t_max - t_min) / 2
 
     @property
     def X(self) -> np.ndarray:
+        assert (self.p_min is not None) and (self.p_max is not None)
+
         return self.rescale(self.p, self.p_min, self.p_max)
 
     @property
     def y(self) -> np.ndarray:
+        assert (self.V_min is not None) and (self.V_max is not None)
+
         return self.rescale(self.V, self.V_min, self.V_max)
 
     @property
@@ -90,14 +92,14 @@ class CQPESData:
 
         return cls(
             xyz=_load("xyz.npy"),
-            alpha=_load("alpha.npy"),
+            alpha=_load("alpha.npy").item(),
             p=_load("p.npy"),
             V=_load("V.npy"),
-            ref_energy=float(_load("ref_energy.npy")),
+            ref_energy=_load("ref_energy.npy").item(),
             p_min=_load("p_min.npy"),
             p_max=_load("p_max.npy"),
-            V_min=float(_load("V_min.npy")),
-            V_max=float(_load("V_max.npy")),
+            V_min=_load("V_min.npy").item(),
+            V_max=_load("V_max.npy").item(),
         )
 
     def to_dir(
@@ -112,11 +114,11 @@ class CQPESData:
             "alpha.npy": self.alpha,
             "p.npy": self.p,
             "V.npy": self.V,
-            "ref_energy.npy": np.array(self.ref_energy),
+            "ref_energy.npy": self.ref_energy,
             "p_min.npy": self.p_min,
             "p_max.npy": self.p_max,
-            "V_min.npy": np.array(self.V_min),
-            "V_max.npy": np.array(self.V_max),
+            "V_min.npy": self.V_min,
+            "V_max.npy": self.V_max,
         }
 
         for filename, data in payload.items():
@@ -128,6 +130,9 @@ class CQPESData:
         self,
         index: Any,
     ) -> "CQPESData":
+        if isinstance(index, (int, np.integer)):
+            index = [index]
+
         return CQPESData(
             xyz=self.xyz[index],
             alpha=self.alpha,

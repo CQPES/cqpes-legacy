@@ -59,19 +59,9 @@ def v_calc_V(
     return V_list
 
 
-def scale(
-    t: np.ndarray,
-    t_min: np.ndarray,
-    t_max: np.ndarray,
-) -> np.ndarray:
-    t_scaled = np.nan_to_num(2 * (t - t_min) / (t_max - t_min) - 1)
-
-    return t_scaled
-
-
 def run_prepare(
-    msa_path: str,
     config: PrepareConfig,
+    msa_path: str,
 ) -> PrepareSummary:
     # load msa so
     msa = load_msa_so(msa_path)

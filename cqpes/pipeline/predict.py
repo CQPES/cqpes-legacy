@@ -3,11 +3,17 @@ import sys
 from typing import List, Literal, cast
 
 import numpy as np
+import tensorflow as tf
 from ase import Atoms
 from ase.io import read, write
-from ase.units import Bohr, Hartree  # 引入标准物理常数
+from ase.units import Bohr, Hartree
 
-from cqpes.pipeline.potential import CQPESPot
+from cqpes import CQPESPot
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+tf.config.set_visible_devices([], "GPU")
+tf.keras.backend.set_floatx("float64")
 
 
 def run_predict(

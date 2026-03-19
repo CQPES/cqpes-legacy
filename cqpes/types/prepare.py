@@ -61,7 +61,12 @@ class PrepareConfig:
         with open(config_json, "r") as f:
             config_dict = json.load(f)
 
-        return cls(**config_dict)
+        valid_keys = {f.name for f in fields(cls)}
+        filtered_kwargs = {
+            k: v for k, v in config_dict.items() if k in valid_keys
+        }
+
+        return cls(**filtered_kwargs)
 
 
 @dataclass(frozen=True)
@@ -75,11 +80,7 @@ class PrepareSummary:
     output_dir: str
 
     def log(self) -> None:
-        from cqpes.utils.logger import print_header
-
         WIDTH = 80
-
-        print_header("PREPARE SUMMARY")
 
         print(f"  {'Samples:':<16} {self.n_samples}")
         print(f"  {'Atoms:':<16} {self.n_atoms}")

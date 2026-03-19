@@ -1,7 +1,19 @@
 import json
 import os
 from dataclasses import dataclass, field, fields
-from typing import List, Literal
+from typing import Any, Dict, List, Literal, Type, TypeVar
+
+import numpy as np
+
+T = TypeVar("T")
+
+
+def _filter_kwargs(
+    cls: Type[T],
+    kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
+    valid_keys = {f.name for f in fields(cls)}  # type: ignore
+    return {k: v for k, v in kwargs.items() if k in valid_keys}
 
 
 @dataclass
@@ -59,6 +71,17 @@ class TrainConfig:
                         f"[{f.name}] Work directory '{abs_val}' already exists."
                     )
 
+        if len(self.split) != 3:
+            raise ValueError(
+                f"split must contain exactly 3 elements "
+                f"(Train, Valid, Test), got {len(self.split)}"
+            )
+
+        if not np.allclose(sum(self.split), 1.0):
+            raise ValueError(
+                f"split fractions must sum to 1.0, got {sum(self.split)}"
+            )
+
     @classmethod
     def from_json(
         cls,
@@ -73,8 +96,10 @@ class TrainConfig:
         return cls(
             data=d["data"],
             workdir=d["workdir"],
-            network=NetworkConfig(**d.get("network", {})),
-            fit=FitConfig(**d.get("fit", {})),
-            lm=LMConfig(**d.get("lm", {})),
+            network=NetworkConfig(
+                **_filter_kwargs(NetworkConfig, d.get("network", {}))
+            ),
+            fit=FitConfig(**_filter_kwargs(FitConfig, d.get("fit", {}))),
+            lm=LMConfig(**_filter_kwargs(LMConfig, d.get("lm", {}))),
             split=d.get("split", [0.9, 0.05, 0.05]),
         )

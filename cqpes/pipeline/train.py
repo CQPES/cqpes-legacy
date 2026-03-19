@@ -12,7 +12,8 @@ import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
+from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
+from tensorflow.keras.callbacks import TensorBoard
 
 from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
@@ -156,7 +157,12 @@ def run_train(
 
     print("\n")
 
-    weights = np.array([weighting_func(v) for v in V])
+    # for better performance
+    weights = np.fromiter(
+        (weighting_func(v) for v in V),
+        dtype=np.float64,
+        count=len(V),
+    )
 
     # 4. build nn
     print(f"  [{'NETWORK':^10}] Constructing PIP-NN with LM Optimizer...")
@@ -187,7 +193,7 @@ def run_train(
     ckpt = ModelCheckpoint(
         filepath=os.path.join(
             ckpt_dir,
-            "model-epoch-{epoch:04d}-val-mse-{val_wmse:.5e}.h5",
+            "model_epoch_{epoch:04d}_val_mse_{val_wmse:.5e}.h5",
         ),
         monitor="val_wmse",
         save_best_only=True,
