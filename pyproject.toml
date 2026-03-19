@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cqpes"
+version = "2.0.0"
+description = "A GPU-Aided Software Package for Developing Full-Dimensional Accurate Potential Energy Surfaces"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "BSD 2-Clause Simplified License" }
+authors = [
+    { name = "mizu-bai", email = "shiragawa4519@outlook.com" },
+    { name = "kshsong", email = "songks@foxmail.com" },
+]
+keywords = [
+    "potential-energy-surface",
+    "neural-network",
+    "chemical-reaction-dynamics",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = []
+
+[project.urls]
+"Homepage" = "https://github.com/CQPES/cqpes-legacy"
+
+[project.scripts]
+cqpes = "cqpes.cli.entries:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cqpes*"]
