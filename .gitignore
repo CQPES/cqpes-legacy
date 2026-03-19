@@ -1,5 +1,20 @@
+# vscode
+.vscode/
+
+# bad apple
+.DS_Store
+
 # exp
 exp/
+
+# cqpes
+*.npy
+model_*/
+*.png
+*.csv
+*.txt
+*.traj
+vib_*/
 
 # Gaussian
 fort.7
