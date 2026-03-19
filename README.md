@@ -69,7 +69,7 @@ Follow the interactive prompts to configure your molecular system (e.g., `4 1` f
 Organize your raw structural data in standard xyz format and your corresponding energies (in Hartree) in a .dat file. Pack them into efficient NumPy arrays using the prepare command:
 
 ```bash
-(cqpes-env)$ cqpes prepare config/prepare.json
+(cqpes-env)$ cqpes prepare config/prepare.json --msa msa.cpython-310-x86_64-linux-gnu.so
 ```
 
 This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration.

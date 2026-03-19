@@ -1,9 +1,8 @@
-import os
 import sys
 from datetime import datetime
 
-import tensorflow as tf
 from ase import Atoms, units
+from ase.constraints import FixCom
 from ase.io import read, write
 from ase.md.langevin import Langevin
 from ase.md.logger import MDLogger
@@ -16,11 +15,6 @@ from tqdm import tqdm
 
 from cqpes.interface.ase import CQPESCalculator
 from cqpes.utils.logger import print_header
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
-tf.config.set_visible_devices([], "GPU")
-tf.keras.backend.set_floatx("float64")
 
 
 def run_task(args) -> None:
@@ -119,11 +113,14 @@ def run_task(args) -> None:
                 f"Target: {args.temp} K"
             )
 
+            atoms.set_constraint(FixCom())
+
             dyn_md = Langevin(
                 atoms,
                 timestep=dt_ase,
                 temperature_K=args.temp,
                 friction=0.01 / units.fs,
+                fixcm=False,
             )
 
         traj_file = f"{output_basename}_md_{args.md}_{timestamp}.xyz"
