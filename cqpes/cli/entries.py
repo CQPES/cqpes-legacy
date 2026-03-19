@@ -35,6 +35,27 @@ def get_version() -> str:
         return "unknown-dev"
 
 
+def fuzzy_choice(choices):
+    def wrapper(value):
+        matches = [c for c in choices if c.startswith(value.lower())]
+        
+        if len(matches) == 1:
+            return matches[0]
+
+        elif len(matches) > 1:
+            import argparse
+            raise argparse.ArgumentTypeError(
+                f"ambiguous value '{value}': could match {', '.join(matches)}"
+            )
+        else:
+            import argparse
+            raise argparse.ArgumentTypeError(
+                f"invalid choice '{value}' (choose from {', '.join(choices)})"
+            )
+
+    return wrapper
+
+
 def main() -> None:
     current_version = get_version()
 
@@ -141,8 +162,8 @@ def main() -> None:
 
     predict_parser.add_argument(
         "--force-mode",
-        choices=["analytical", "numerical"],
         default="analytical",
+        type=fuzzy_choice(["analytical", "numerical"]),
         help="Force calculation mode (default: analytical)",
     )
 
@@ -205,8 +226,8 @@ def main() -> None:
         "--freq",
         nargs="?",
         const="analytical",
-        choices=["analytical", "numerical"],
-        help="Frequency analysis",
+        type=fuzzy_choice(["analytical", "numerical"]),
+        help="Frequency analysis: 'analytical' or 'numerical'",
     )
 
     ctrl_group.add_argument(

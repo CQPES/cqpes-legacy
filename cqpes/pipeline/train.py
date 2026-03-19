@@ -193,7 +193,7 @@ def run_train(
     ckpt = ModelCheckpoint(
         filepath=os.path.join(
             ckpt_dir,
-            "model_epoch_{epoch:04d}_val_mse_{val_wmse:.5e}.h5",
+            "model_epoch_{epoch:04d}_val_mse_{val_wmse:.5e}.weights.h5",
         ),
         monitor="val_wmse",
         save_best_only=True,

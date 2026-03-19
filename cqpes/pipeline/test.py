@@ -81,7 +81,11 @@ def run_test(workdir_path: str):
     model_wrapper.load_weights(best_ckpt_path)
 
     # errors
-    V_pred_norm = model_wrapper.predict(X_raw, batch_size=4096)
+    V_pred_norm = model_wrapper.predict(
+        X_raw,
+        batch_size=4096,
+        verbose=0,
+    )
     V_pred = CQPESData.unscale(V_pred_norm, params["V_min"], params["V_max"])
     errors_meV = (V_pred - V_true) * 1000.0
 
