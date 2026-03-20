@@ -51,6 +51,9 @@ For beginners and developers, or offline environments, clone the repository and 
 
 (cqpes-env)$ git clone https://github.com/CQPES/cqpes-legacy.git
 (cqpes-env)$ cd cqpes-legacy
+# For users
+(cqpes-env)$ pip install .
+# For developers
 (cqpes-env)$ pip install -e .
 ```
 
