@@ -28,6 +28,9 @@ warnings.filterwarnings("ignore", message=".*HDF5 file.*")
 warnings.filterwarnings("ignore", message=".*native Keras format.*")
 
 
+_GPU_COMMAND = ["train"]
+
+
 def get_version() -> str:
     try:
         return version("cqpes")
@@ -38,17 +41,19 @@ def get_version() -> str:
 def fuzzy_choice(choices):
     def wrapper(value):
         matches = [c for c in choices if c.startswith(value.lower())]
-        
+
         if len(matches) == 1:
             return matches[0]
 
         elif len(matches) > 1:
             import argparse
+
             raise argparse.ArgumentTypeError(
                 f"ambiguous value '{value}': could match {', '.join(matches)}"
             )
         else:
             import argparse
+
             raise argparse.ArgumentTypeError(
                 f"invalid choice '{value}' (choose from {', '.join(choices)})"
             )
@@ -281,6 +286,12 @@ def main() -> None:
     argcomplete.autocomplete(parser)
 
     args = parser.parse_args()
+
+    if args.command not in _GPU_COMMAND:
+        try:
+            tf.config.set_visible_devices([], "GPU")
+        except RuntimeError:
+            pass
 
     if args.command == "prepare":
         _run_prepare(

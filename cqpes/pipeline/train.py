@@ -12,20 +12,13 @@ import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard  # type: ignore
+from tensorflow.keras.callbacks import (  # type: ignore
+    ModelCheckpoint,
+    TensorBoard,
+)
 
 from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-tf.keras.backend.set_floatx("float64")
-
-
-def _isru(x):
-    return x / tf.sqrt(tf.square(x) + 1.0)
-
-
-tf.keras.utils.get_custom_objects().update({"isru": _isru})
 
 
 def _load_weighting_func() -> Callable:
@@ -40,7 +33,8 @@ def _load_weighting_func() -> Callable:
         return default_weighting
 
     spec = importlib.util.spec_from_file_location(
-        "weighting_module", weight_path
+        name="weighting_module",
+        localation=weight_path,
     )
 
     if spec and spec.loader:

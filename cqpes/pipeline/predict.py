@@ -3,17 +3,11 @@ import sys
 from typing import List, Literal, cast
 
 import numpy as np
-import tensorflow as tf
 from ase import Atoms
 from ase.io import read, write
 from ase.units import Bohr, Hartree
 
 from cqpes import CQPESPot
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
-tf.config.set_visible_devices([], "GPU")
-tf.keras.backend.set_floatx("float64")
 
 
 def run_predict(
@@ -49,7 +43,8 @@ def run_predict(
 
         if return_au:
             print(
-                f"  [{'SCALE':^10}] Converting to Atomic Units (Bohr, Hartree)..."
+                f"  [{'SCALE':^10}] "
+                "Converting to Atomic Units (Bohr, Hartree)..."
             )
             unit_e, unit_c, unit_f = "Hartree", "Bohr", "Hartree/Bohr"
 
