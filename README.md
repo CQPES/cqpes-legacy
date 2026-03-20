@@ -33,8 +33,22 @@ $ bash ./cqpes-cu120-2.0.0-Linux-x86_64.sh
 
 ### Step 2: Install CQPES
 
-```bash
+Activate your environment first:
+
+```
 $ conda activate /path/to/cqpes-env
+```
+
+For standard users, simply install via `pip`:
+
+```bash
+(cqpes-env)$ pip install cqpes
+```
+
+For beginners and developers, or offline environments, clone the repository and install from source:
+
+```bash
+
 (cqpes-env)$ git clone https://github.com/CQPES/cqpes-legacy.git
 (cqpes-env)$ cd cqpes-legacy
 (cqpes-env)$ pip install -e .
