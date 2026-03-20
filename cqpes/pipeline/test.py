@@ -65,8 +65,12 @@ def run_test(workdir_path: str):
     best_ckpt_path = h5_files[-1]
     best_ckpt_name = os.path.basename(best_ckpt_path)
 
-    match = re.search(r"epoch-[\w\d]+", best_ckpt_name)
-    epoch_label = match.group(0) if match else "epoch-unknown"
+    match = re.search(
+        r"epoch_(\d+)_val_mse_([\d.e-]+)",
+        best_ckpt_name.replace(".weights.h5", ""),
+    )
+
+    epoch_label = match.group(0) if match else "epoch_unknown"
 
     folder_name = os.path.basename(os.path.normpath(workdir))
     file_prefix = f"{folder_name}_{epoch_label}"
@@ -84,7 +88,7 @@ def run_test(workdir_path: str):
     V_pred_norm = model_wrapper.predict(
         X_raw,
         batch_size=4096,
-        verbose=0,
+        verbose=0,  # type: ignore
     )
     V_pred = CQPESData.unscale(V_pred_norm, params["V_min"], params["V_max"])
     errors_meV = (V_pred - V_true) * 1000.0

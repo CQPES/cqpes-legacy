@@ -10,7 +10,6 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.verlet import VelocityVerlet
 from ase.optimize import BFGS
 from ase.vibrations import Vibrations
-from sella import Sella
 from tqdm import tqdm
 
 from cqpes.interface.ase import CQPESCalculator
@@ -47,11 +46,17 @@ def run_task(args) -> None:
             )
             dyn = BFGS(atoms)
         else:
+            try:
+                from sella import Sella
+            except ImportError:
+                print("\n[ERROR] 'sella' is required for TS search")
+                print("Please install it via: pip install sella\n")
+
             print(f"  [{'TS':^10}] Mode: TS Search (Sella) | fmax: {args.fmax}")
             dyn = Sella(atoms)
 
         traj_file = f"{output_basename}_opt_{timestamp}.xyz"
-        dyn.attach(lambda: write(traj_file, atoms, append=True))
+        dyn.attach(lambda: write(traj_file, atoms, append=True))  # type: ignore
         dyn.run(fmax=args.fmax, steps=args.steps)
 
     # (2) freq
