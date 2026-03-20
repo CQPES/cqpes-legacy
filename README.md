@@ -1,5 +1,8 @@
 # CQPES (ChongQing Potential Energy Surface)
 
+[![DOI](https://img.shields.io/badge/DOI-10.3390/chemistry7060201-B31B1B)](https://doi.org/10.3390/chemistry7060201)
+[![PyPI version](https://img.shields.io/pypi/v/cqpes)](https://pypi.org/project/cqpes/)
+[![License](https://img.shields.io/pypi/l/cqpes)](https://github.com/cqpes/cqpes-legacy/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/CQPES/cqpes-legacy)
 
 This package is a Python implementation of potential energy surface (PES) fitting with permutational invariant polynomials neural network (PIP-NN).
