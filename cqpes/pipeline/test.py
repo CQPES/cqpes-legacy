@@ -5,7 +5,6 @@ import re
 import numpy as np
 import pandas as pd
 import scienceplots  # noqa: F401
-import tensorflow as tf
 import tf_levenberg_marquardt as lm
 from matplotlib import pyplot as plt
 from natsort import natsorted
@@ -13,18 +12,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
-tf.config.set_visible_devices([], "GPU")
-tf.keras.backend.set_floatx("float64")
-
-
-def _isru(x):
-    return x / tf.sqrt(tf.square(x) + 1.0)
-
-
-tf.keras.utils.get_custom_objects().update({"isru": _isru})
 
 
 def run_test(workdir_path: str):
@@ -45,13 +32,16 @@ def run_test(workdir_path: str):
 
     indices = {
         "Train": np.loadtxt(
-            os.path.join(workdir, "train_idx.txt"), dtype=np.int32
+            os.path.join(workdir, "train_idx.txt"),
+            dtype=np.int32,
         ),
         "Valid": np.loadtxt(
-            os.path.join(workdir, "valid_idx.txt"), dtype=np.int32
+            os.path.join(workdir, "valid_idx.txt"),
+            dtype=np.int32,
         ),
         "Test": np.loadtxt(
-            os.path.join(workdir, "test_idx.txt"), dtype=np.int32
+            os.path.join(workdir, "test_idx.txt"),
+            dtype=np.int32,
         ),
     }
 
@@ -122,9 +112,7 @@ def _export_metrics(V_true, V_pred, indices: dict, file_prefix: str) -> None:
     print("\n" + df.to_string(index=False) + "\n")
 
 
-def _plot_error_scatter(
-    V_true, errors_meV, indices: dict, file_prefix: str
-) -> None:
+def _plot_error_scatter(V_true, errors_meV, indices: dict, file_prefix: str) -> None:
     plot_filename = f"{file_prefix}_scatter.png"
     print(f"  [{'PLOT':^10}] Generating scatter plot...")
 

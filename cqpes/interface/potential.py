@@ -14,20 +14,6 @@ from cqpes.types.train import TrainConfig
 from cqpes.utils.model import build_network
 from cqpes.utils.msa import load_msa_so
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-tf.get_logger().setLevel("ERROR")
-
-tf.config.set_visible_devices([], "GPU")
-tf.keras.backend.set_floatx("float64")
-
-
-def _isru(x):
-    return x / tf.sqrt(tf.square(x) + 1.0)
-
-
-tf.keras.utils.get_custom_objects().update({"isru": _isru})
-
 
 class CQPESPot:
     def __init__(
