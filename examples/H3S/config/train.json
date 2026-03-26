@@ -1,0 +1,31 @@
+{
+  "data": "./data",
+  "network": {
+    "layers": [
+      20,
+      60
+    ],
+    "activation": "tanh"
+  },
+  "fit": {
+    "lr": 0.5,
+    "epoch": 1000,
+    "batch_size": 2048
+  },
+  "lm": {
+    "adaptive_scaling": true,
+    "fletcher": false,
+    "solve_method": "solve",
+    "jacobian_max_num_rows": 1024
+  },
+  "split": [
+    0.9,
+    0.05,
+    0.05
+  ],
+  "workdir": "model",
+  "layers": [
+    25,
+    45
+  ]
+}
