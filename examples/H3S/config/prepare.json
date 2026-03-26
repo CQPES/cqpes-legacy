@@ -1,0 +1,7 @@
+{
+  "xyz": "./rawdata/H3S.xyz",
+  "energy": "./rawdata/H3S_CCSD-T.dat",
+  "ref_energy": -399.45864,
+  "alpha": 1.0,
+  "output": "./data"
+}
