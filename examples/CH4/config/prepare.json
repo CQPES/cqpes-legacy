@@ -1,0 +1,7 @@
+{
+    "xyz": "rawdata/CH4.xyz",
+    "energy": "rawdata/CH4_CCSD-T.dat",
+    "ref_energy": null,
+    "alpha": 1.0,
+    "output": "data"
+}
