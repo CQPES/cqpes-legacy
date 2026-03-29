@@ -1,51 +1,18 @@
 import os
 import shutil
-from types import ModuleType
 from typing import List, cast
 
+import jax
 import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
-from scipy.spatial import distance
+from jax import numpy as jnp
+from jaxpip.descriptor import PolynomialDescriptor
 
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
-from cqpes.utils.msa import load_msa_so
 
-
-def v_calc_p(
-    xyz_list: np.ndarray,
-    alpha: float,
-    basis: ModuleType,
-) -> np.ndarray:
-    def _calc_morse(
-        r: np.ndarray,
-        alpha: float,
-    ) -> np.ndarray:
-        return np.exp(-1.0 * r / alpha)
-
-    r_list = np.array([distance.pdist(xyz) for xyz in xyz_list])
-
-    morse_list = np.apply_along_axis(
-        func1d=_calc_morse,
-        axis=1,
-        arr=r_list,
-        alpha=alpha,
-    )
-
-    mono_list = np.apply_along_axis(
-        func1d=basis.evmono,
-        axis=1,
-        arr=morse_list,
-    )
-
-    poly_list = np.apply_along_axis(
-        func1d=basis.evpoly,
-        axis=1,
-        arr=mono_list,
-    )
-
-    return poly_list
+jax.config.update("jax_enable_x64", True)
 
 
 def v_calc_V(
@@ -57,13 +24,16 @@ def v_calc_V(
     return V_list
 
 
-def run_prepare(
+def run_prepare_jaxpip(
     config: PrepareConfig,
-    msa_path: str,
+    basis_file: str,
 ) -> PrepareSummary:
-    # load msa so
-    msa = load_msa_so(msa_path)
-    basis = msa.basis
+    # load jaxpip basis
+    descriptor = PolynomialDescriptor.from_file(
+        basis_file=basis_file,
+        alpha=config.alpha,
+        dtype=jnp.float64,
+    )
 
     # load xyz
     mol_list = cast(List[Atoms], read(config.xyz, index=":"))
@@ -79,11 +49,8 @@ def run_prepare(
         )
 
     # p
-    p_list = v_calc_p(
-        xyz_list=xyz_list,
-        alpha=config.alpha,
-        basis=basis,
-    )
+    p_list = jax.vmap(descriptor)(jnp.asarray(xyz_list))
+    p_list = np.asarray(p_list)
 
     # ref energy
     if config.ref_energy is not None:
@@ -97,7 +64,7 @@ def run_prepare(
     cqpes_data = CQPESData(
         xyz=xyz_list,
         alpha=config.alpha,
-        p=p_list,
+        p=np.asarray(p_list),
         V=V_list,
         ref_energy=ref_energy,
     )
@@ -106,9 +73,9 @@ def run_prepare(
 
     assert cqpes_data.V_min is not None and cqpes_data.V_max is not None
 
-    msa_filename = os.path.basename(msa_path)
-    archived_msa = os.path.join(output_path, msa_filename)
-    shutil.copy2(msa_path, archived_msa)
+    basis_filename = os.path.basename(basis_file)
+    archived_basis = os.path.join(output_path, basis_filename)
+    shutil.copy2(basis_file, archived_basis)
 
     return PrepareSummary(
         n_samples=cqpes_data.n_samples,

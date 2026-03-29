@@ -12,10 +12,8 @@ import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import (  # type: ignore
-    ModelCheckpoint,
-    TensorBoard,
-)
+from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
+from tensorflow.keras.callbacks import TensorBoard
 
 from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
