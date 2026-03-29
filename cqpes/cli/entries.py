@@ -96,8 +96,12 @@ def main() -> None:
 
     prepare_parser.add_argument(
         "--msa",
-        required=True,
         help="Path to compiled MSA .so module",
+    )
+
+    prepare_parser.add_argument(
+        "--jaxpip",
+        help="Path to JaxPIP basis file",
     )
 
     # 2. train
@@ -294,10 +298,22 @@ def main() -> None:
             pass
 
     if args.command == "prepare":
-        _run_prepare(
-            args.config,
-            msa_path=args.msa,
-        )
+        if (args.msa is not None) and (args.jaxpip is not None):
+            raise RuntimeError(
+                "Conflict detected: Cannot specify both '--msa' and '--jaxpip' "
+                "simultaneously. Please choose one backend."
+            )
+
+        if args.msa is not None:
+            _run_prepare_msa(
+                args.config,
+                msa_path=args.msa,
+            )
+        elif args.jaxpip is not None:
+            _run_prepare_jaxpip(
+                args.config,
+                basis_file=args.jaxpip,
+            )
     elif args.command == "train":
         _run_train(args.config)
     elif args.command == "test":
@@ -320,11 +336,11 @@ def main() -> None:
         _run_tasks(args)
 
 
-def _run_prepare(
+def _run_prepare_msa(
     config_path: str,
     msa_path: str,
 ) -> None:
-    from cqpes.pipeline.prepare import run_prepare
+    from cqpes.pipeline.prepare import run_prepare_msa
     from cqpes.types.prepare import PrepareConfig
     from cqpes.utils.logger import print_header
 
@@ -332,7 +348,27 @@ def _run_prepare(
         print_header("PREPARING DATASET")
 
         config = PrepareConfig.from_json(config_path)
-        summary = run_prepare(config, msa_path)
+        summary = run_prepare_msa(config, msa_path)
+
+        summary.log()
+    except Exception as e:
+        print(f"\n[ERROR] Preparation failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _run_prepare_jaxpip(
+    config_path: str,
+    basis_file: str,
+) -> None:
+    from cqpes.pipeline.prepare import run_prepare_jaxpip
+    from cqpes.types.prepare import PrepareConfig
+    from cqpes.utils.logger import print_header
+
+    try:
+        print_header("PREPARING DATASET")
+
+        config = PrepareConfig.from_json(config_path)
+        summary = run_prepare_jaxpip(config, basis_file)
 
         summary.log()
     except Exception as e:
