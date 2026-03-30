@@ -3,16 +3,18 @@ import shutil
 from typing import List, cast
 
 import jax
+
+jax.config.update("jax_enable_x64", True)
+
+import gzip
+
 import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
+from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from jax import numpy as jnp
 from jaxpip.descriptor import PolynomialDescriptor
-
-from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
-
-jax.config.update("jax_enable_x64", True)
 
 
 def v_calc_V(
@@ -74,8 +76,20 @@ def run_prepare_jaxpip(
     assert cqpes_data.V_min is not None and cqpes_data.V_max is not None
 
     basis_filename = os.path.basename(basis_file)
-    archived_basis = os.path.join(output_path, basis_filename)
-    shutil.copy2(basis_file, archived_basis)
+
+    if basis_filename.endswith(".gz"):
+        target_basis_name = basis_filename
+    else:
+        target_basis_name = basis_filename + ".gz"
+
+    archived_basis = os.path.join(output_path, target_basis_name)
+
+    if not basis_file.endswith(".gz"):
+        with open(basis_file, "rb") as f_in:
+            with gzip.open(archived_basis, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+    else:
+        shutil.copy2(basis_file, archived_basis)
 
     return PrepareSummary(
         n_samples=cqpes_data.n_samples,

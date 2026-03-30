@@ -19,7 +19,6 @@ except ImportError:
     pass
 
 import argcomplete
-
 from cqpes.utils.logger import custom_warning, print_header
 
 warnings.showwarning = custom_warning
@@ -140,7 +139,7 @@ def main() -> None:
     export_parser.add_argument(
         "-t",
         "--type",
-        choices=["h5", "potfit"],
+        choices=["h5", "potfit", "jaxpip"],
         default="h5",
         help="Export format",
     )

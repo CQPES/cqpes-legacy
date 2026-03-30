@@ -1,15 +1,16 @@
 import glob
+import json
 import os
 import sys
 from typing import Literal
 
+import cqpes
 import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
-from natsort import natsorted
-
 from cqpes.types import TrainConfig
 from cqpes.utils.model import build_network
+from natsort import natsorted
 
 _ACT_MAP = {
     "linear": 0,
@@ -96,9 +97,97 @@ def _model2potfit(
     return weights_file, biases_file
 
 
+def _model2keras(
+    model: tf.keras.Model,
+    output_dir: str,
+) -> str:
+    h5_path = os.path.join(output_dir, "model.h5")
+    model.save(h5_path)
+
+    return h5_path
+
+
+def _model2jaxpip(
+    model: tf.keras.Model,
+    basis_file: str,
+    alpha: float,
+    output_dir: str,
+    p_min: np.ndarray,
+    p_max: np.ndarray,
+    V_min: float,
+    V_max: float,
+) -> str:
+
+    import jax
+
+    jax.config.update("jax_enable_x64", True)
+
+    import equinox as eqx
+    from jax import numpy as jnp
+    from jaxpip.descriptor import PolynomialDescriptor
+    from jaxpip.model import FeatureScaler, PolynomialNeuralNetwork
+
+    descriptor = PolynomialDescriptor.from_file(
+        basis_file=basis_file,
+        alpha=alpha,
+        dtype=jnp.float64,
+    )
+
+    hidden_units = [layer.units for layer in model.layers[:-1]]
+
+    skeleton = PolynomialNeuralNetwork(
+        descriptor=descriptor,
+        hidden_layers=hidden_units,
+        key=jax.random.PRNGKey(0),
+        activation=model.layers[0].get_config()["activation"],
+    )
+
+    new_model = skeleton
+
+    linear_indices = [
+        i
+        for i, layer in enumerate(new_model.layers.layers)
+        if isinstance(layer, eqx.nn.Linear)
+    ]
+
+    for k_idx, eqx_idx in enumerate(linear_indices):
+        W_keras, b_keras = model.layers[k_idx].get_weights()
+
+        # NOTE: Transpose required
+        W_jax = jnp.array(W_keras.T, dtype=jnp.float64)
+        b_jax = jnp.array(b_keras, dtype=jnp.float64)
+
+        new_model = eqx.tree_at(
+            where=lambda m, idx=eqx_idx: (
+                m.layers.layers[idx].weight,
+                m.layers.layers[idx].bias,
+            ),
+            pytree=new_model,
+            replace=(W_jax, b_jax),
+        )
+
+    new_scaler = FeatureScaler(
+        p_min=jnp.array(p_min[1:], dtype=jnp.float64),
+        p_max=jnp.array(p_max[1:], dtype=jnp.float64),
+        V_min=jnp.array(V_min, dtype=jnp.float64),
+        V_max=jnp.array(V_max, dtype=jnp.float64),
+    )
+
+    new_model = eqx.tree_at(
+        where=lambda m: m.scaler,
+        pytree=new_model,
+        replace=new_scaler,
+    )
+
+    eqx_path = os.path.join(output_dir, "model.eqx")
+    eqx.tree_serialise_leaves(eqx_path, new_model)
+
+    return eqx_path
+
+
 def run_export(
     workdir_path: str,
-    export_type: Literal["h5", "potfit"],
+    export_type: Literal["h5", "potfit", "jaxpip"],
 ) -> None:
     workdir = os.path.abspath(workdir_path)
 
@@ -109,18 +198,37 @@ def run_export(
     # 2. load train config
     train_config = TrainConfig.from_json(config_path)
 
-    # 3. load scale factor
+    # find jaxpip basis
+    if export_type == "jaxpip":
+        json_files = glob.glob(os.path.join(train_config.data, "*.json.gz"))
+
+        if len(json_files) == 0:
+            raise RuntimeError("Error: No JaxPIP basis json found")
+        elif len(json_files) == 1:
+            basis_file = json_files[0]
+        elif len(json_files) > 1:
+            raise RuntimeError(
+                f"Error: Multiple JaxPIP basis json found: {json_files}"
+            )
+
+    # 3. load morse range parameter &  scale factor
+    alpha = np.load(os.path.join(workdir, "alpha.npy")).item()
+
+    phys_dict = {}
+
     try:
-        p_min = np.load(os.path.join(workdir, "p_min.npy"))
-        p_max = np.load(os.path.join(workdir, "p_max.npy"))
-        V_min = np.load(os.path.join(workdir, "V_min.npy")).item()
-        V_max = np.load(os.path.join(workdir, "V_max.npy")).item()
+        phys_dict["p_min"] = np.load(os.path.join(workdir, "p_min.npy"))
+        phys_dict["p_max"] = np.load(os.path.join(workdir, "p_max.npy"))
+        phys_dict["V_min"] = np.load(os.path.join(workdir, "V_min.npy")).item()
+        phys_dict["V_max"] = np.load(os.path.join(workdir, "V_max.npy")).item()
     except FileNotFoundError as e:
         print(
             f"\n[ERROR] Physical parameters missing in workdir: {e}",
             file=sys.stderr,
         )
+
         print("Did you forget to save .npy files during 'train'?")
+
         return
 
     # 4. auto detect checkpoint
@@ -140,9 +248,9 @@ def run_export(
     best_ckpt = h5_files[-1]
 
     # 5. build model
-    input_dim = len(p_min) - 1
+    input_dim = len(phys_dict["p_min"]) - 1
     model = build_network(train_config, input_dim=input_dim)
-    model_wrapper = lm.model.ModelWrapper(model)
+    model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
     model_wrapper.build(input_shape=(1, input_dim))
     model_wrapper.load_weights(best_ckpt)
 
@@ -151,20 +259,52 @@ def run_export(
     os.makedirs(export_dir, exist_ok=True)
 
     if export_type == "h5":
-        h5_path = os.path.join(export_dir, "model.h5")
-        model_wrapper.model.save(h5_path)
+        model_h5 = _model2keras(model, export_dir)
+
         print(
             f"  [{'H5':^10}] Saved pure Keras model to: "
-            f"{os.path.basename(h5_path)}"
+            f"{os.path.basename(model_h5)}"
         )
     elif export_type == "potfit":
         weights_path, biases_path = _model2potfit(
-            model_wrapper.model, export_dir, p_min, p_max, V_min, V_max
+            model_wrapper.model,
+            export_dir,
+            **phys_dict,
         )
+
         print(
             f"  [{'POTFIT':^10}] Saved potfit model to "
             f"{os.path.basename(weights_path)} and "
             f"{os.path.basename(biases_path)}"
+        )
+    elif export_type == "jaxpip":
+        model_eqx = _model2jaxpip(
+            model,
+            basis_file=basis_file,
+            alpha=alpha,
+            output_dir=export_dir,
+            **phys_dict,
+        )
+
+        print(
+            f"  [{'JAXPIP':^10}] Saved pure Equinox model to: "
+            f"{os.path.basename(model_eqx)}"
+        )
+
+    meta_path = os.path.join(export_dir, "model_info.json")
+
+    hidden_units = [layer.units for layer in model.layers[:-1]]
+
+    with open(meta_path, "w") as f:
+        json.dump(
+            {
+                "hidden_layers": hidden_units,
+                "activation": model.layers[0].get_config()["activation"],
+                "alpha": alpha,
+                "feature_dim": model.input_shape[1],
+            },
+            f,
+            indent=4,
         )
 
     print(f"  [{'DONE':^10}] Results saved to {export_dir}")

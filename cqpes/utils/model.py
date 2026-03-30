@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 from cqpes.types.train import TrainConfig
 
 
