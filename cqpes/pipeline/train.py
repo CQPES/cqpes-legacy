@@ -1,9 +1,12 @@
+import os
+
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+
 import datetime
 import glob
 import importlib.util
 import inspect
 import json
-import os
 import shutil
 from dataclasses import asdict
 from typing import Callable
@@ -11,14 +14,11 @@ from typing import Callable
 import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import (  # type: ignore
-    ModelCheckpoint,
-    TensorBoard,
-)
-
 from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.model import build_network
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
+from tensorflow.keras.callbacks import TensorBoard
 
 
 def _load_weighting_func() -> Callable:
@@ -71,12 +71,22 @@ def run_train(
     with open(config_snapshot, "w") as f:
         json.dump(asdict(config), f, indent=4)
 
+    # for msa backend
     msa_files = glob.glob(os.path.join(config.data, "*.so"))
 
     for msa_file in msa_files:
         shutil.copy2(
             src=msa_file,
             dst=os.path.join(run_workdir, os.path.basename(msa_file)),
+        )
+
+    # for jaxpip backend
+    json_gz_files = glob.glob(os.path.join(config.data, "*.json.gz"))
+
+    for json_gz_file in json_gz_files:
+        shutil.copy2(
+            src=json_gz_file,
+            dst=os.path.join(run_workdir, os.path.basename(json_gz_file)),
         )
 
     weight_src = os.path.abspath("weighting.py")
