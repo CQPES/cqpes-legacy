@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Literal
 
-import cqpes
+import cqpes  # noqa: F401
 import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
