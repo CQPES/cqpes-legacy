@@ -6,7 +6,6 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 from ase.units import Bohr, Hartree
-
 from cqpes import CQPESPot
 
 

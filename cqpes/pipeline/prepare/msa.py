@@ -7,10 +7,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
-from scipy.spatial import distance
-
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from cqpes.utils.msa import load_msa_so
+from scipy.spatial import distance
 
 
 def v_calc_p(
