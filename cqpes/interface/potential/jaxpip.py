@@ -13,8 +13,7 @@ jax.config.update("jax_enable_x64", True)
 import equinox as eqx
 from cqpes.interface.potential import CQPESBasePot
 from jax import numpy as jnp
-from jaxpip.descriptor import PolynomialDescriptor
-from jaxpip.model import FeatureScaler, PolynomialNeuralNetwork
+from jaxpip.model import PolynomialNeuralNetwork
 
 
 class CQPESJaxPIPPot(CQPESBasePot):
@@ -44,41 +43,35 @@ class CQPESJaxPIPPot(CQPESBasePot):
         workdir: str,
     ) -> PolynomialNeuralNetwork:
         # find basis json.gz
-
         json_gz_files = glob.glob(os.path.join(workdir, "*.json.gz"))
 
-        if len(json_gz_files) == 1:
+        if len(json_gz_files) == 0:
+            raise RuntimeError("Error: No JaxPIP basis json found")
+        elif len(json_gz_files) == 1:
             basis_file = json_gz_files[0]
-        else:
+        elif len(json_gz_files) > 1:
             raise RuntimeError(
-                f"Error: Multiple json.gz found: {json_gz_files}"
+                f"Error: Multiple JaxPIP basis json.gz found: {json_gz_files}"
             )
 
-        alpha = np.load(os.path.join(workdir, "alpha.npy")).item()
+        # find network eqx
+        eqx_files = glob.glob(os.path.join(workdir, "export", "*.eqx"))
 
+        if len(eqx_files) == 0:
+            raise RuntimeError("Error: No JaxPIP network eqx")
+        elif len(eqx_files) == 1:
+            network_file = eqx_files[0]
+        elif len(eqx_files) > 1:
+            raise RuntimeError(f"Error: Multiple eqx found: {eqx_files}")
+
+        # phys const
         self.ref_energy = np.load(
             os.path.join(workdir, "ref_energy.npy")
         ).item()
 
-        with open(os.path.join(workdir, "export", "model_info.json")) as f:
-            model_info = json.load(f)
-
-        descriptor = PolynomialDescriptor.from_file(
+        jaxpip_network = PolynomialNeuralNetwork.from_file(
             basis_file=basis_file,
-            alpha=alpha,
-            dtype=jnp.float64,
-        )
-
-        jaxpip_network = PolynomialNeuralNetwork(
-            descriptor=descriptor,
-            hidden_layers=model_info["hidden_layers"],
-            key=jax.random.PRNGKey(1919810),
-            activation=model_info["activation"],
-        )
-
-        jaxpip_network = eqx.tree_deserialise_leaves(
-            os.path.join(workdir, "export", "model.eqx"),
-            jaxpip_network,
+            network_file=network_file,
         )
 
         return jaxpip_network
