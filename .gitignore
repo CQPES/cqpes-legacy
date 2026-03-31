@@ -14,6 +14,8 @@ model_*/
 *.csv
 *.txt
 *.traj
+*.json
+*.json.gz
 vib_*/
 
 # Gaussian

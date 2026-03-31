@@ -87,7 +87,20 @@ CQPES provides a unified Command Line Interface (CLI) for the entire PES develop
 
 You can try the following steps in directory `example/CH4`!
 
+## Step 0. Choose Your Backend
+
+CQPES now supports two powerful backends to balance compatibility and performance:
+
+| Feature | **MSA (Legacy)** | **JaxPIP (Modern)** |
+| :---: | :---: | :---: |
+| **Core Engine** | TensorFlow + Keras | JAX + Equinox |
+| **PIP Logic** | `f2py` Dynamic Linking Library (wrapper for MSA-2.0) | Native JaxPIP Implementation |
+| **Derivatives** | Analytical (Hybrid Fortran-based & Tensorflow) | Automatic Differentiation |
+| **Performance** | Baseline | Extreme (XLA Optimized) |
+
 ### Step 1. Generate PIP Basis
+
+#### MSA Backend
 
 We provide a wrapper for MSA-2.0 to generate the PIP basis. Clone the builder repository:
 
@@ -99,12 +112,26 @@ We provide a wrapper for MSA-2.0 to generate the PIP basis. Clone the builder re
 
 Follow the interactive prompts to configure your molecular system (e.g., `4 1` for an A<sub>4</sub>B system like CH<sub>4</sub>). Once built, copy the generated .so library into your working directory.
 
+#### JaxPIP Backend
+
+1. **Basis Conversion**: Convert your existing PIP definitions to JaxPIP JSON format using the cli tool [`jaxpip bas2json`](https://github.com/CQPES/JaxPIP).
+2. **Library**: You can also find pre-computed basis sets in the [JaxPIP Basis Library](https://github.com/CQPES/JaxPIP-Basis-Library).
+
+
 ### Step 2: Prepare Dataset
 
 Organize your raw structural data in standard xyz format and your corresponding energies (in Hartree) in a .dat file. Pack them into efficient NumPy arrays using the prepare command:
 
+`MSA`:
+
 ```bash
 (cqpes-env)$ cqpes prepare config/prepare.json --msa msa.cpython-310-x86_64-linux-gnu.so
+```
+
+`JaxPIP`:
+
+```bash
+(cqpes-env)$ cqpes prepare config/prepare.json --jaxpip MOL_x_y_z_k.json
 ```
 
 This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration.
@@ -133,19 +160,20 @@ This will automatically compute MAE, MSE, and RMSE for your training, validation
 
 CQPES can be exported in 2 formats:
 
-- Standard Keras `h5` format, required by `predict` and `run` commands
+- Standard Keras `h5` format, required by `predict` and `run` commands if `MSA` backend used.
+- Experimental `JaxPIP` format, required by `predict` and `run` commands if `JaxPIP` backend used.
 - Legacy `potfit` plain text format, compatible with fortran interface for software like Polyrate, VENUS96C, or Caracal.
+- New
 
 ```bash
 (cqpes-env)$ cqpes export -t h5 model_20260315_123751/
+(cqpes-env)$ cqpes export -t jaxpip model_20260315_123751/
 (cqpes-env)$ cqpes export -t potfit model_20260315_123751/
 ```
 
 The exported files will be stored in model path.
 
 ### Step 6. Property Prediction
-
-Quickly predict energies and forces (analytical and numerical) for a given .xyz trajectory using a trained model.
 
 ```bash
 (cqpes-env)$ cqpes predict model_20260315_123751 new_trajectory.xyz --output predictions.xyz

@@ -1,7 +1,6 @@
 from typing import List, Literal
 
 from ase.calculators.calculator import Calculator, all_changes
-
 from cqpes.interface.potential import CQPESPot
 
 
