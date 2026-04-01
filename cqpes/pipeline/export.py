@@ -179,8 +179,8 @@ def _model2jaxpip(
         replace=new_scaler,
     )
 
-    eqx_path = os.path.join(output_dir, "model.eqx")
-    eqx.tree_serialise_leaves(eqx_path, new_model)
+    eqx_path = os.path.join(output_dir, "jaxpip_network.eqx")
+    new_model.save(eqx_path)
 
     return eqx_path
 
