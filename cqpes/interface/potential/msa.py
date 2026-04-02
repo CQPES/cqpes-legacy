@@ -1,10 +1,9 @@
 import glob
 import os
-from typing import List, Literal, Union
+from typing import Literal
 
 import numpy as np
 import tensorflow as tf
-from ase import Atoms
 from ase.units import Hartree
 from cqpes.interface.potential import CQPESBasePot
 from cqpes.pipeline.prepare import v_calc_p
@@ -12,7 +11,6 @@ from cqpes.types.data import CQPESData
 from cqpes.types.train import TrainConfig
 from cqpes.utils.model import build_network
 from cqpes.utils.msa import load_msa_so
-from scipy.spatial.distance import pdist
 
 
 class CQPESMSAPot(CQPESBasePot):
@@ -27,13 +25,28 @@ class CQPESMSAPot(CQPESBasePot):
         # load phys
         self._load_physics()
 
+        # load descriptor
         self._mount_msa()
+
+        # build network
         self._build_network()
+
+        # cache
+        self._num_atoms = None
+        self._num_carts = None
+        self._r_i = None
+        self._r_j = None
+        self._num_pairs = None
+
+        self._drdx_buffer = None
+
+        self._V_p_scale = (self.V_max - self.V_min) / (self.p_max - self.p_min)
 
     def _load_physics(
         self,
     ) -> None:
         config_path = os.path.join(self.workdir, "train.json")
+
         if not os.path.exists(config_path):
             raise FileNotFoundError(
                 f"[FATAL] train.json not found in {self.workdir}"
@@ -59,7 +72,9 @@ class CQPESMSAPot(CQPESBasePot):
                 f"[ERROR] Failed to load physical artifacts: {e}"
             )
 
-    def _mount_msa(self) -> None:
+    def _mount_msa(
+        self,
+    ) -> None:
         so_files = glob.glob(os.path.join(self.workdir, "*.so"))
 
         if not so_files:
@@ -68,9 +83,12 @@ class CQPESMSAPot(CQPESBasePot):
             )
 
         msa_path = so_files[0]
+
         self.msa = load_msa_so(msa_path)
 
-    def _build_network(self) -> None:
+    def _build_network(
+        self,
+    ) -> None:
         export_model_path = os.path.join(self.workdir, "export", "model.h5")
 
         if not os.path.exists(export_model_path):
@@ -86,12 +104,39 @@ class CQPESMSAPot(CQPESBasePot):
 
         self.net = model
 
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(
+                    shape=[None, input_dim],
+                    dtype=tf.float64,
+                )
+            ],
+            jit_compile=True,
+        )
+        def _get_grad(
+            X: tf.Tensor,
+        ) -> tf.Tensor:
+            with tf.GradientTape() as tape:
+                tape.watch(X)
+
+                y = self.net(X, training=False)
+
+            return tf.convert_to_tensor(
+                tape.gradient(
+                    y,
+                    X,
+                    unconnected_gradients=tf.UnconnectedGradients.ZERO,
+                )
+            )
+
+        self._tf_grad = _get_grad
+
     def get_energy(
         self,
-        xyz: Union[np.ndarray, List[Atoms]],
+        xyz: np.ndarray,
         return_au: bool = False,
     ) -> np.ndarray:
-        # (N_configs, N_atoms, 3)
+        # (num_configs, num_atoms, 3)
         xyz_arr = self._standardize_coordinates(xyz)
 
         # 1. calculate p
@@ -107,20 +152,13 @@ class CQPESMSAPot(CQPESBasePot):
         x_scaled = CQPESData.rescale(p_feat, self.p_min, self.p_max)
 
         # 3. X -> y
-        y_scaled = self.net.predict(
-            x_scaled,
-            batch_size=4096,
-            verbose=0,
-        )
+        y_scaled = self.net(x_scaled, training=False).numpy()
 
         # 4. y in [-1, 1] -> V
-        V_eV = CQPESData.unscale(y_scaled, self.V_min, self.V_max)
-
-        results = V_eV.flatten()
+        V_eV = CQPESData.unscale(y_scaled, self.V_min, self.V_max).flatten()
 
         # 5. to Hartree
-        if return_au:
-            results = (results / Hartree) + self.ref_energy
+        results = ((V_eV / Hartree) + self.ref_energy) if return_au else V_eV
 
         if results.size == 1 and not isinstance(xyz, list):
             return results.item()
@@ -129,80 +167,80 @@ class CQPESMSAPot(CQPESBasePot):
 
     def get_forces_analytical(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
     ) -> np.ndarray:
-        # (N_configs, N_atoms, 3)
+        # (num_configs, num_atoms, 3)
         xyz_arr = self._standardize_coordinates(xyz)
-        n_configs = xyz_arr.shape[0]
-        n_atoms = xyz_arr.shape[1]
-        n_cart = 3 * n_atoms
+        num_configs = xyz_arr.shape[0]
+        num_atoms = xyz_arr.shape[1]
+        num_carts = 3 * num_atoms
 
-        # 1. calculate p
+        if self._num_atoms is None:
+            self._num_atoms = num_atoms
+            self._num_carts = num_carts
+
+            self._r_i, self._r_j = np.triu_indices(self._num_atoms, k=1)
+            self._num_pairs = len(self._r_i)
+
+            self._drdx_buffer = np.zeros(
+                (self._num_carts, self._num_pairs),
+                dtype=np.float64,
+                order="F",
+            )
+
+        assert (
+            (self._num_atoms is not None)
+            and (self._num_carts is not None)
+            and (self._r_i is not None)
+            and (self._r_j is not None)
+            and (self._num_pairs is not None)
+            and (self._drdx_buffer is not None)
+        )
+
+        # 1. calculate p & network input X
         p_raw = v_calc_p(
             xyz_list=xyz_arr,
             alpha=self.alpha,
             basis=self.msa.basis,
         )
 
-        p_feat = p_raw[:, 1:]
+        # p_feat = p_raw[:, 1:]
+        X_scaled = CQPESData.rescale(p_raw[:, 1:], self.p_min, self.p_max)
 
-        # 2. prepare tensor and track gradients for the entire batch
-        X_numpy = CQPESData.rescale(p_feat, self.p_min, self.p_max)
-        X_tensor = tf.convert_to_tensor(X_numpy, dtype=tf.float64)
+        grad_raw = self._tf_grad(
+            X=tf.convert_to_tensor(X_scaled, dtype=tf.float64)
+        ).numpy()
 
-        with tf.GradientTape() as tape:
-            tape.watch(X_tensor)
-            y = self.net(X_tensor)
+        dV_dp_batch = grad_raw * self._V_p_scale
 
-        grad_raw = tape.gradient(y, X_tensor)
+        results_forces = np.zeros((num_configs, num_atoms, 3), dtype=np.float64)
 
-        if grad_raw is None:
-            raise RuntimeError(
-                "[FATAL] Gradient disconnected. "
-                "Ensure network topology is differentiable."
-            )
-
-        V_scale = (self.V_max - self.V_min) / 2.0
-        p_scale = 2.0 / (self.p_max - self.p_min)
-
-        # (N_configs, N_features)
-        dV_dp_batch = tf.convert_to_tensor(grad_raw).numpy() * V_scale * p_scale
-
-        results_forces = np.zeros((n_configs, n_atoms, 3), dtype=np.float64)
-
-        for i in range(n_configs):
+        for i in range(num_configs):
             pos = xyz_arr[i]
             dV_dp = dV_dp_batch[i]
 
-            # 1. xyz -> dist vec
-            r_vec = pdist(pos)
-            n_bonds = len(r_vec)
-            msa_drdx = np.zeros((n_cart, n_bonds), dtype=np.float64, order="F")
+            diff = pos[self._r_i] - pos[self._r_j]
+            dist = np.linalg.norm(diff, axis=1)
+            unit_vecs = diff / dist[:, np.newaxis]
 
-            k = 0
+            self._drdx_buffer.fill(0.0)
 
-            for row in range(n_atoms - 1):
-                for col in range(row + 1, n_atoms):
-                    r = r_vec[k]
-                    if r > 1e-12:
-                        unit_vec = (pos[row] - pos[col]) / r
-                        msa_drdx[3 * row : 3 * row + 3, k] = unit_vec
-                        msa_drdx[3 * col : 3 * col + 3, k] = -unit_vec
+            for k in range(self._num_pairs):
+                r_idx, c_idx = self._r_i[k], self._r_j[k]
+                uv = unit_vecs[k]
+                self._drdx_buffer[3 * r_idx : 3 * r_idx + 3, k] = uv
+                self._drdx_buffer[3 * c_idx : 3 * c_idx + 3, k] = -uv
 
-                    k += 1
-
-            # 2. dist vec -> morse -> mono -> poly
-            x_morse = np.exp(-r_vec / self.alpha).ravel().astype(np.float64)
+            x_morse = np.exp(-dist / self.alpha)
             msa_mono = self.msa.basis.evmono(x_morse)
-            msa_poly = self.msa.basis.evpoly(msa_mono)
+            msa_poly = p_raw[i]
 
-            # 3. dbemsav
-            forces_flat = np.zeros(n_cart)
+            forces_flat = np.zeros(self._num_carts)
 
-            for j in range(n_cart):
-                # fortran 1-based indexing
+            for j in range(self._num_carts):
+                # Fortran 1-based indexing
                 dp_dr_j = self.msa.gradient.dbemsav(
-                    msa_drdx,
+                    self._drdx_buffer,
                     msa_mono,
                     msa_poly,
                     j + 1,
@@ -210,9 +248,9 @@ class CQPESMSAPot(CQPESBasePot):
 
                 forces_flat[j] = -np.dot(dV_dp, dp_dr_j[1:])
 
-            results_forces[i] = forces_flat.reshape(n_atoms, 3)
+            results_forces[i] = forces_flat.reshape(self._num_atoms, 3)
 
-        if n_configs == 1 and not isinstance(xyz, list):
+        if num_configs == 1 and not isinstance(xyz, list):
             return results_forces[0]
 
         return results_forces
