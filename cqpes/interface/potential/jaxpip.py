@@ -1,11 +1,9 @@
 import glob
-import json
 import os
-from typing import List, Literal, Union
+from typing import Literal
 
 import jax
 import numpy as np
-from ase import Atoms
 from ase.units import Hartree
 
 jax.config.update("jax_enable_x64", True)
@@ -78,7 +76,7 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
     def get_energy(
         self,
-        xyz: Union[np.ndarray, List[Atoms]],
+        xyz: np.ndarray,
         return_au: bool = False,
     ) -> np.ndarray:
         xyz_arr = self._standardize_coordinates(xyz)
@@ -96,7 +94,7 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
     def get_forces_analytical(
         self,
-        xyz: Union[np.ndarray, List[Atoms]],
+        xyz: np.ndarray,
     ) -> np.ndarray:
         xyz_arr = self._standardize_coordinates(xyz)
         xyz_jx = jnp.asarray(xyz_arr)
