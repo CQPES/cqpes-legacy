@@ -17,6 +17,7 @@ model_*/
 *.json
 *.json.gz
 vib_*/
+run_out_*
 
 # Gaussian
 fort.7
