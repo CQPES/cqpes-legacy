@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Literal, Optional, Union
+from typing import Literal, Optional
 
 import numpy as np
-from ase import Atoms
 from ase.units import Bohr, Hartree
 
 
@@ -17,18 +16,9 @@ class CQPESBasePot(ABC):
 
     def _standardize_coordinates(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
     ) -> np.ndarray:
-        if isinstance(xyz, Atoms):
-            xyz_input = xyz.get_positions()
-        elif (
-            isinstance(xyz, list) and len(xyz) > 0 and isinstance(xyz[0], Atoms)
-        ):
-            xyz_input = np.array([mol.get_positions() for mol in xyz])
-        else:
-            xyz_input = xyz
-
-        arr = np.asarray(xyz_input, dtype=np.float64)
+        arr = np.asarray(xyz, dtype=np.float64)
 
         if arr.ndim == 2:
             return arr[np.newaxis, :, :]
@@ -43,14 +33,14 @@ class CQPESBasePot(ABC):
     @abstractmethod
     def get_energy(
         self,
-        xyz: Union[np.ndarray, List[Atoms]],
+        xyz: np.ndarray,
         return_au: bool = False,
     ) -> np.ndarray:
         pass
 
     def get_forces(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
         return_au: bool = False,
         force_mode: Optional[str] = None,
         **kwargs,
@@ -69,7 +59,7 @@ class CQPESBasePot(ABC):
 
     def get_forces_numerical(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
         delta: float = 0.01,
     ) -> np.ndarray:
         # (N_configs, N_atoms, 3)
@@ -109,13 +99,13 @@ class CQPESBasePot(ABC):
     @abstractmethod
     def get_forces_analytical(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
     ) -> np.ndarray:
         pass
 
     def check_forces(
         self,
-        xyz: Union[np.ndarray, List[Atoms], Atoms],
+        xyz: np.ndarray,
         delta: float = 0.01,
         atol: float = 1.0e-05,
         rtol: float = 1.0e-03,
