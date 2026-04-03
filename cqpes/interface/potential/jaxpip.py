@@ -58,7 +58,7 @@ class CQPESJaxPIPPot(CQPESBasePot):
         if len(eqx_files) == 0:
             raise RuntimeError("Error: No JaxPIP network eqx")
         elif len(eqx_files) == 1:
-            network_file = eqx_files[0]
+            model_file = eqx_files[0]
         elif len(eqx_files) > 1:
             raise RuntimeError(f"Error: Multiple eqx found: {eqx_files}")
 
@@ -69,7 +69,7 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
         jaxpip_network = PolynomialNeuralNetwork.from_file(
             basis_file=basis_file,
-            network_file=network_file,
+            model_file=model_file,
         )
 
         return jaxpip_network

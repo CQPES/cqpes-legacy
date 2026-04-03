@@ -5,7 +5,7 @@ from typing import List, Literal, cast
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-from ase.units import Bohr, Hartree
+from ase.units import Bohr
 from cqpes import CQPESPot
 
 
@@ -26,7 +26,10 @@ def run_predict(
 
         print(f"  [{'COMPUTE':^10}] Neural Network forward passing (Energy)...")
 
-        energies = pot.get_energy(mol_list, return_au=return_au)
+        energies = pot.get_energy(
+            np.array([mol.get_positions() for mol in mol_list]),
+            return_au=return_au,
+        )
         if np.isscalar(energies):
             energies = [energies]
 
@@ -35,7 +38,10 @@ def run_predict(
                 f"  [{'COMPUTE':^10}] Engine resolving forces ({force_mode})..."
             )
 
-            forces_batch = pot.get_forces(mol_list)
+            forces_batch = pot.get_forces(
+                np.array([mol.get_positions() for mol in mol_list]),
+                return_au=return_au,
+            )
 
             if forces_batch.ndim == 2:
                 forces_batch = np.expand_dims(forces_batch, axis=0)
@@ -46,14 +52,11 @@ def run_predict(
                 "Converting to Atomic Units (Bohr, Hartree)..."
             )
             unit_e, unit_c, unit_f = "Hartree", "Bohr", "Hartree/Bohr"
-
-            # 1 eV/A = (Bohr / Hartree) a.u.
-            if calc_forces:
-                forces_batch *= Bohr / Hartree
         else:
             unit_e, unit_c, unit_f = "eV", "Angstrom", "eV/Angstrom"
 
         print(f"  [{'PACK':^10}] Injecting properties into ExtXYZ format...")
+
         for i, atoms in enumerate(mol_list):
             # to au
             if return_au:
