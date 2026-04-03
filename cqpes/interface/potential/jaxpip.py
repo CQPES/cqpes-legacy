@@ -2,16 +2,16 @@ import glob
 import os
 from typing import Literal
 
+import equinox as eqx
 import jax
 import numpy as np
 from ase.units import Hartree
-
-jax.config.update("jax_enable_x64", True)
-
-import equinox as eqx
-from cqpes.interface.potential import CQPESBasePot
 from jax import numpy as jnp
 from jaxpip.model import PolynomialNeuralNetwork
+
+import cqpes  # noqa: F401
+from cqpes.interface.potential import CQPESBasePot
+from cqpes.utils.workspace import ExperimentWorkspace
 
 
 class CQPESJaxPIPPot(CQPESBasePot):
@@ -20,10 +20,10 @@ class CQPESJaxPIPPot(CQPESBasePot):
         workdir: str,
         force_mode: Literal["analytical", "numerical"] = "analytical",
     ) -> None:
-        self.workdir = os.path.abspath(workdir)
+        self.workspace = ExperimentWorkspace.from_existing(workdir)
         self.force_mode = force_mode
 
-        jaxpip_network = self._build_network(self.workdir)
+        jaxpip_network = self._build_network()
 
         @eqx.filter_jit
         def wrapper_energy_batch(xyz):
@@ -38,10 +38,14 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
     def _build_network(
         self,
-        workdir: str,
     ) -> PolynomialNeuralNetwork:
         # find basis json.gz
-        json_gz_files = glob.glob(os.path.join(workdir, "*.json.gz"))
+        json_gz_files = glob.glob(
+            os.path.join(
+                self.workspace.path,
+                "*.json.gz",
+            )
+        )
 
         if len(json_gz_files) == 0:
             raise RuntimeError("Error: No JaxPIP basis json found")
@@ -53,7 +57,8 @@ class CQPESJaxPIPPot(CQPESBasePot):
             )
 
         # find network eqx
-        eqx_files = glob.glob(os.path.join(workdir, "export", "*.eqx"))
+        export_dir = self.workspace.get_subpath("export")
+        eqx_files = glob.glob(os.path.join(export_dir, "*.eqx"))
 
         if len(eqx_files) == 0:
             raise RuntimeError("Error: No JaxPIP network eqx")
@@ -64,7 +69,10 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
         # phys const
         self.ref_energy = np.load(
-            os.path.join(workdir, "ref_energy.npy")
+            os.path.join(
+                self.workspace.path,
+                "ref_energy.npy",
+            )
         ).item()
 
         jaxpip_network = PolynomialNeuralNetwork.from_file(

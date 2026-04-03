@@ -5,12 +5,15 @@ from typing import Literal
 import numpy as np
 import tensorflow as tf
 from ase.units import Hartree
+
+import cqpes  # noqa: F401
 from cqpes.interface.potential import CQPESBasePot
 from cqpes.pipeline.prepare import v_calc_p
 from cqpes.types.data import CQPESData
 from cqpes.types.train import TrainConfig
 from cqpes.utils.model import build_network
 from cqpes.utils.msa import load_msa_so
+from cqpes.utils.workspace import ExperimentWorkspace
 
 
 class CQPESMSAPot(CQPESBasePot):
@@ -19,7 +22,7 @@ class CQPESMSAPot(CQPESBasePot):
         workdir: str,
         force_mode: Literal["analytical", "numerical"] = "analytical",
     ) -> None:
-        self.workdir = os.path.abspath(workdir)
+        self.workspace = ExperimentWorkspace.from_existing(workdir)
         self.force_mode = force_mode
 
         # load phys
@@ -45,27 +48,35 @@ class CQPESMSAPot(CQPESBasePot):
     def _load_physics(
         self,
     ) -> None:
-        config_path = os.path.join(self.workdir, "train.json")
+        config_path = os.path.join(self.workspace.path, "train.json")
 
         if not os.path.exists(config_path):
             raise FileNotFoundError(
-                f"[FATAL] train.json not found in {self.workdir}"
+                f"[FATAL] train.json not found in {self.workspace.path}"
             )
 
         self.config = TrainConfig.from_json(config_path)
 
         try:
-            self.p_min = np.load(os.path.join(self.workdir, "p_min.npy"))[1:]
-            self.p_max = np.load(os.path.join(self.workdir, "p_max.npy"))[1:]
+            phys_dict = {
+                k: np.load(os.path.join(self.workspace.path, f"{k}.npy"))
+                for k in [
+                    "p_min",
+                    "p_max",
+                    "V_min",
+                    "V_max",
+                    "ref_energy",
+                    "alpha",
+                ]
+            }
 
-            self.V_min = np.load(os.path.join(self.workdir, "V_min.npy")).item()
-            self.V_max = np.load(os.path.join(self.workdir, "V_max.npy")).item()
+            self.p_min = phys_dict["p_min"][1:]
+            self.p_max = phys_dict["p_max"][1:]
+            self.V_min = phys_dict["V_min"].item()
+            self.V_max = phys_dict["V_max"].item()
 
-            self.alpha = np.load(os.path.join(self.workdir, "alpha.npy")).item()
-
-            self.ref_energy = np.load(
-                os.path.join(self.workdir, "ref_energy.npy")
-            ).item()
+            self.ref_energy = phys_dict["ref_energy"].item()
+            self.alpha = phys_dict["alpha"].item()
 
         except Exception as e:
             raise RuntimeError(
@@ -75,11 +86,11 @@ class CQPESMSAPot(CQPESBasePot):
     def _mount_msa(
         self,
     ) -> None:
-        so_files = glob.glob(os.path.join(self.workdir, "*.so"))
+        so_files = glob.glob(os.path.join(self.workspace.path, "*.so"))
 
         if not so_files:
             raise FileNotFoundError(
-                f"[FATAL] No MSA engine (.so) found in {self.workdir}"
+                f"[FATAL] No MSA engine (.so) found in {self.workspace.path}"
             )
 
         msa_path = so_files[0]
@@ -89,13 +100,17 @@ class CQPESMSAPot(CQPESBasePot):
     def _build_network(
         self,
     ) -> None:
-        export_model_path = os.path.join(self.workdir, "export", "model.h5")
+        export_model_path = os.path.join(
+            self.workspace.path,
+            "export",
+            "model.h5",
+        )
 
         if not os.path.exists(export_model_path):
             raise FileNotFoundError(
                 f"\n  [{'FATAL':^10}] Production model missing: "
                 f"{os.path.basename(export_model_path)}\n"
-                f"  [{'ACTION':^10}] Run: cqpes export -t h5 {self.workdir}"
+                f"  [{'ACTION':^10}] Run: cqpes export -t h5 {self.workspace.path}"
             )
 
         input_dim = len(self.p_min)

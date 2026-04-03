@@ -1,102 +1,88 @@
-import glob
 import os
-import re
+from typing import Dict
 
-import cqpes  # noqa: F401
 import numpy as np
 import pandas as pd
 import scienceplots  # noqa: F401
 import tf_levenberg_marquardt as lm
-from cqpes.types import CQPESData, TrainConfig
-from cqpes.utils.model import build_network
 from matplotlib import pyplot as plt
-from natsort import natsorted
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+import cqpes  # noqa: F401
+from cqpes.types import CQPESData, TrainConfig
+from cqpes.utils.model import build_network
+from cqpes.utils.train import find_best_checkpoint
+from cqpes.utils.workspace import ExperimentWorkspace
 
-def run_test(workdir_path: str):
-    workdir = os.path.abspath(workdir_path)
 
-    # load config
-    train_config = TrainConfig.from_json(os.path.join(workdir, "train.json"))
+def run_test(
+    workdir_path: str,
+) -> None:
+    # 1. existing workspace
+    workspace = ExperimentWorkspace.from_existing(workdir_path)
+    eval_dir = workspace.get_subpath("eval")
 
-    # load dataset
-    dataset = CQPESData.from_dir(train_config.data)
-    X_raw = dataset.X[:, 1:]
-    V_true = dataset.V.reshape(-1, 1)
+    # 2. load metadata
+    train_config = TrainConfig.from_json(
+        os.path.join(
+            workspace.path,
+            "train.json",
+        )
+    )
 
-    params = {
-        k: np.load(os.path.join(workdir, f"{k}.npy"))
+    phys_dict = {
+        k: np.load(os.path.join(workspace.path, f"{k}.npy"))
         for k in ["p_min", "p_max", "V_min", "V_max"]
     }
 
-    indices = {
-        "Train": np.loadtxt(
-            os.path.join(workdir, "train_idx.txt"),
+    subset_idx_map = {
+        name: np.loadtxt(
+            os.path.join(workspace.path, f"{name.lower()}_idx.txt"),
             dtype=np.int32,
-        ),
-        "Valid": np.loadtxt(
-            os.path.join(workdir, "valid_idx.txt"),
-            dtype=np.int32,
-        ),
-        "Test": np.loadtxt(
-            os.path.join(workdir, "test_idx.txt"),
-            dtype=np.int32,
-        ),
+        )
+        for name in ["Train", "Valid", "Test"]
     }
 
-    # find checkpoint
-    ckpt_dir = os.path.join(workdir, "ckpt")
-    h5_files = natsorted(glob.glob(os.path.join(ckpt_dir, "*.h5")))
+    # 3. find best checkpoint
+    best_ckpt_path, label = find_best_checkpoint(workspace.path)
 
-    if not h5_files:
-        raise FileNotFoundError(f"[FATAL] No checkpoints found in {ckpt_dir}")
+    print(f"  [{'WORKDIR':^10}] {workspace.path}")
+    print(f"  [{'MODEL':^10}] Target: {os.path.basename(best_ckpt_path)}")
 
-    best_ckpt_path = h5_files[-1]
-    best_ckpt_name = os.path.basename(best_ckpt_path)
-
-    match = re.search(
-        r"epoch_(\d+)_val_mse_([\d.e-]+)",
-        best_ckpt_name.replace(".weights.h5", ""),
-    )
-
-    epoch_label = match.group(0) if match else "epoch_unknown"
-
-    folder_name = os.path.basename(os.path.normpath(workdir))
-    file_prefix = f"{folder_name}_{epoch_label}"
-
-    print(f"  [{'WORKDIR':^10}] {workdir}")
-    print(f"  [{'MODEL':^10}] Target: {best_ckpt_name}")
-
-    # 4. build model
-    model = build_network(train_config, input_dim=X_raw.shape[1])
-    model_wrapper = lm.model.ModelWrapper(model)
-    model_wrapper.build(input_shape=(1, X_raw.shape[1]))
+    # 4. build network
+    input_dim = len(phys_dict["p_min"]) - 1
+    model = build_network(train_config, input_dim=input_dim)
+    model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
+    model_wrapper.build(input_shape=(1, input_dim))
     model_wrapper.load_weights(best_ckpt_path)
 
-    # errors
-    V_pred_norm = model_wrapper.predict(
-        X_raw,
-        batch_size=4096,
-        verbose=0,  # type: ignore
-    )
-    V_pred = CQPESData.unscale(V_pred_norm, params["V_min"], params["V_max"])
-    errors_meV = (V_pred - V_true) * 1000.0
+    # 5. estimate error
+    dataset = CQPESData.from_dir(train_config.data)
+    X_scaled, V_true = dataset.X[:, 1:], dataset.V.reshape((-1, 1))
+    y = model_wrapper(X_scaled, training=False).numpy()
+    V_pred = CQPESData.unscale(y, phys_dict["V_min"], phys_dict["V_max"])
 
-    # 5. summary
-    _export_metrics(V_true, V_pred, indices, file_prefix)
-    _plot_error_scatter(V_true, errors_meV, indices, file_prefix)
-    _plot_error_dist(errors_meV, file_prefix)
+    errors_meV = (V_pred - V_true) * 1.0e03
+
+    file_prefix = f"{os.path.basename(workspace.path)}_{label}"
+
+    _export_metrics(V_true, V_pred, subset_idx_map, eval_dir, file_prefix)
+    _plot_diagnostics(V_true, errors_meV, subset_idx_map, eval_dir, file_prefix)
 
 
-def _export_metrics(V_true, V_pred, indices: dict, file_prefix: str) -> None:
-    csv_filename = f"{file_prefix}_metrics.csv"
+def _export_metrics(
+    V_true: np.ndarray,
+    V_pred: np.ndarray,
+    subset_idx_map: Dict[str, np.ndarray],
+    output_dir: str,
+    file_prefix: str,
+) -> None:
     stats = []
-
-    eval_indices = {**indices, "Total": np.arange(len(V_true))}
+    eval_indices = {**subset_idx_map, "Total": np.arange(len(V_true))}
 
     for name, idx in eval_indices.items():
-        y_t, y_p = V_true[idx] * 1000.0, V_pred[idx] * 1000.0
+        y_t, y_p = V_true[idx] * 1.0e03, V_pred[idx] * 1.0e03
+
         stats.append(
             {
                 "Set": name,
@@ -107,15 +93,22 @@ def _export_metrics(V_true, V_pred, indices: dict, file_prefix: str) -> None:
         )
 
     df = pd.DataFrame(stats)
-    df.to_csv(csv_filename, index=False)
-    print(f"  [{'METRICS':^10}] Stats saved to: {csv_filename}")
+    csv_path = os.path.join(output_dir, f"{file_prefix}_metrics.csv")
+    df.to_csv(csv_path, index=False)
+
+    print(f"  [{'METRICS':^10}] Stats saved to: {csv_path}")
     print("\n" + df.to_string(index=False) + "\n")
 
 
 def _plot_error_scatter(
-    V_true, errors_meV, indices: dict, file_prefix: str
+    V_true,
+    errors_meV,
+    subset_idx_map: Dict[str, np.ndarray],
+    output_dir: str,
+    file_prefix: str,
 ) -> None:
-    plot_filename = f"{file_prefix}_scatter.png"
+    plot_path = os.path.join(output_dir, f"{file_prefix}_scatter.png")
+
     print(f"  [{'PLOT':^10}] Generating scatter plot...")
 
     colors = {"Train": "b", "Valid": "g", "Test": "r"}
@@ -123,7 +116,7 @@ def _plot_error_scatter(
     with plt.style.context(["science", "no-latex"]):
         fig, ax = plt.subplots(figsize=(8, 6), dpi=300)
 
-        for name, idx in indices.items():
+        for name, idx in subset_idx_map.items():
             ax.scatter(
                 V_true[idx],
                 errors_meV[idx],
@@ -139,19 +132,25 @@ def _plot_error_scatter(
 
         ax.legend(loc="upper right", frameon=True)
 
-        plt.savefig(plot_filename, bbox_inches="tight")
+        plt.savefig(plot_path, bbox_inches="tight")
         plt.close(fig)
 
-        print(f"  [{'SAVE':^10}] Scatter plot saved as: {plot_filename}")
+        print(f"  [{'SAVE':^10}] Scatter plot saved as: {plot_path}")
 
 
-def _plot_error_dist(errors_meV, file_prefix: str) -> None:
-    plot_filename = f"{file_prefix}_hist.png"
+def _plot_error_dist(
+    errors_meV: np.ndarray,
+    output_dir: str,
+    file_prefix: str,
+) -> None:
+    plot_path = os.path.join(output_dir, f"{file_prefix}_hist.png")
+
     print(f"  [{'PLOT':^10}] Generating histogram...")
 
-    abs_err = np.abs(errors_meV)
-    max_err = np.ceil(abs_err.max() * 2) / 2
-    bin_width = 0.5 if max_err < 25 else max_err / 50
+    abs_err = np.abs(errors_meV).flatten()
+    upper_bound = np.percentile(abs_err, 99.5)
+    max_err = np.ceil(upper_bound)
+    bin_width = 0.2 if max_err < 10 else 0.5
     edges = np.arange(0.0, max_err + bin_width, bin_width)
 
     with plt.style.context(["science", "no-latex"]):
@@ -172,7 +171,41 @@ def _plot_error_dist(errors_meV, file_prefix: str) -> None:
         ax.set_xlabel("Fitting Error (meV)", fontsize=12, fontweight="bold")
         ax.set_ylabel("Distribution", fontsize=12, fontweight="bold")
 
-        plt.savefig(plot_filename, bbox_inches="tight")
+        mae = np.mean(abs_err).item()
+
+        ax.axvline(
+            mae,
+            color="#e74c3c",
+            linestyle="-",
+            linewidth=1.5,
+            label=f"MAE: {mae:.2f}",
+        )
+
+        plt.legend()
+
+        plt.savefig(plot_path, bbox_inches="tight")
         plt.close(fig)
 
-        print(f"  [{'SAVE':^10}] Histogram saved as: {plot_filename}")
+        print(f"  [{'SAVE':^10}] Histogram saved as: {plot_path}")
+
+
+def _plot_diagnostics(
+    V_true: np.ndarray,
+    errors_meV: np.ndarray,
+    subset_idx_map: Dict[str, np.ndarray],
+    output_dir: str,
+    file_prefix: str,
+) -> None:
+    _plot_error_scatter(
+        V_true=V_true,
+        errors_meV=errors_meV,
+        subset_idx_map=subset_idx_map,
+        output_dir=output_dir,
+        file_prefix=file_prefix,
+    )
+
+    _plot_error_dist(
+        errors_meV=errors_meV,
+        output_dir=output_dir,
+        file_prefix=file_prefix,
+    )

@@ -5,7 +5,8 @@ from typing import List, Literal, cast
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-from ase.units import Bohr
+
+import cqpes  # noqa: F401
 from cqpes import CQPESPot
 
 
@@ -21,15 +22,16 @@ def run_predict(
         pot = CQPESPot(workdir_path, force_mode=force_mode)
 
         print(f"  [{'READ':^10}] Target: {os.path.basename(xyz_path)}")
-        mol_list = cast(List[Atoms], read(xyz_path, index=":"))
-        print(f"  [{'SAMPLES':^10}] Loaded {len(mol_list)} frames.")
 
+        mol_list = cast(List[Atoms], read(xyz_path, index=":"))
+        num_frames = len(mol_list)
+        xyz_batch = np.array([mol.get_positions() for mol in mol_list])
+
+        print(f"  [{'SAMPLES':^10}] Loaded {num_frames} frames.")
         print(f"  [{'COMPUTE':^10}] Neural Network forward passing (Energy)...")
 
-        energies = pot.get_energy(
-            np.array([mol.get_positions() for mol in mol_list]),
-            return_au=return_au,
-        )
+        energies = pot.get_energy(xyz_batch, return_au=return_au)
+
         if np.isscalar(energies):
             energies = [energies]
 
@@ -38,10 +40,7 @@ def run_predict(
                 f"  [{'COMPUTE':^10}] Engine resolving forces ({force_mode})..."
             )
 
-            forces_batch = pot.get_forces(
-                np.array([mol.get_positions() for mol in mol_list]),
-                return_au=return_au,
-            )
+            forces_batch = pot.get_forces(xyz_batch, return_au=return_au)
 
             if forces_batch.ndim == 2:
                 forces_batch = np.expand_dims(forces_batch, axis=0)
@@ -59,12 +58,6 @@ def run_predict(
 
         for i, atoms in enumerate(mol_list):
             # to au
-            if return_au:
-                atoms.positions /= Bohr
-
-                if atoms.cell.any():  # type: ignore
-                    atoms.cell /= Bohr  # type: ignore
-
             atoms.info["energy"] = energies[i]
             atoms.info["energy_unit"] = unit_e
             atoms.info["length_unit"] = unit_c

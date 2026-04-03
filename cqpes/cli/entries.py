@@ -5,6 +5,8 @@ import warnings
 from importlib.metadata import PackageNotFoundError, version
 from typing import Literal
 
+import cqpes  # noqa: F401
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 try:
@@ -19,6 +21,7 @@ except ImportError:
     pass
 
 import argcomplete
+
 from cqpes.utils.logger import custom_warning, print_header
 
 warnings.showwarning = custom_warning

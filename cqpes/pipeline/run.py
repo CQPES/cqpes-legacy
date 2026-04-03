@@ -1,7 +1,6 @@
 import sys
 from datetime import datetime
 
-import cqpes  # noqa: F401
 from ase import Atoms, units
 from ase.constraints import FixCom
 from ase.io import read, write
@@ -11,9 +10,11 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.verlet import VelocityVerlet
 from ase.optimize import BFGS
 from ase.vibrations import Vibrations
+from tqdm import tqdm
+
+import cqpes  # noqa: F401
 from cqpes.interface.ase import CQPESCalculator
 from cqpes.utils.logger import print_header
-from tqdm import tqdm
 
 
 def run_task(args) -> None:

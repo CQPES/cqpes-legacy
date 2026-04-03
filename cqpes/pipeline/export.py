@@ -1,16 +1,18 @@
 import glob
 import json
 import os
-import sys
 from typing import Literal
 
-import cqpes  # noqa: F401
+import jax
 import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
+
+import cqpes  # noqa: F401
 from cqpes.types import TrainConfig
 from cqpes.utils.model import build_network
-from natsort import natsorted
+from cqpes.utils.train import find_best_checkpoint
+from cqpes.utils.workspace import ExperimentWorkspace
 
 _ACT_MAP = {
     "linear": 0,
@@ -117,11 +119,6 @@ def _model2jaxpip(
     V_min: float,
     V_max: float,
 ) -> str:
-
-    import jax
-
-    jax.config.update("jax_enable_x64", True)
-
     import equinox as eqx
     from jax import numpy as jnp
     from jaxpip.descriptor import PolynomialDescriptor
@@ -130,6 +127,7 @@ def _model2jaxpip(
     descriptor = PolynomialDescriptor.from_file(
         basis_file=basis_file,
         alpha=alpha,
+        decay_kernel="morse",  # TODO: reciprocal
         dtype=jnp.float64,
     )
 
@@ -189,11 +187,9 @@ def run_export(
     workdir_path: str,
     export_type: Literal["h5", "potfit", "jaxpip"],
 ) -> None:
-    workdir = os.path.abspath(workdir_path)
-
-    # 1. workdir
-    config_path = os.path.join(workdir, "train.json")
-    ckpt_dir = os.path.join(workdir, "ckpt")
+    # 1. existing workspace
+    workspace = ExperimentWorkspace.from_existing(workdir_path)
+    config_path = os.path.join(workspace.path, "train.json")
 
     # 2. load train config
     train_config = TrainConfig.from_json(config_path)
@@ -212,50 +208,25 @@ def run_export(
             )
 
     # 3. load morse range parameter &  scale factor
-    alpha = np.load(os.path.join(workdir, "alpha.npy")).item()
+    alpha = np.load(os.path.join(workspace.path, "alpha.npy")).item()
 
-    phys_dict = {}
-
-    try:
-        phys_dict["p_min"] = np.load(os.path.join(workdir, "p_min.npy"))
-        phys_dict["p_max"] = np.load(os.path.join(workdir, "p_max.npy"))
-        phys_dict["V_min"] = np.load(os.path.join(workdir, "V_min.npy")).item()
-        phys_dict["V_max"] = np.load(os.path.join(workdir, "V_max.npy")).item()
-    except FileNotFoundError as e:
-        print(
-            f"\n[ERROR] Physical parameters missing in workdir: {e}",
-            file=sys.stderr,
-        )
-
-        print("Did you forget to save .npy files during 'train'?")
-
-        return
+    phys_dict = {
+        k: np.load(os.path.join(workspace.path, f"{k}.npy"))
+        for k in ["p_min", "p_max", "V_min", "V_max"]
+    }
 
     # 4. auto detect checkpoint
-    h5_files = natsorted(glob.glob(os.path.join(ckpt_dir, "*.weights.h5")))
-
-    if not h5_files:
-        print(
-            f"\n[ERROR] No checkpoints found in {ckpt_dir}",
-            file=sys.stderr,
-        )
-        print(
-            "Did you start training?",
-            file=sys.stderr,
-        )
-        return
-
-    best_ckpt = h5_files[-1]
+    best_ckpt_path, _ = find_best_checkpoint(workspace.path)
 
     # 5. build model
     input_dim = len(phys_dict["p_min"]) - 1
     model = build_network(train_config, input_dim=input_dim)
     model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
     model_wrapper.build(input_shape=(1, input_dim))
-    model_wrapper.load_weights(best_ckpt)
+    model_wrapper.load_weights(best_ckpt_path)
 
     # 6. export
-    export_dir = os.path.join(workdir, "export")
+    export_dir = workspace.get_subpath("export")
     os.makedirs(export_dir, exist_ok=True)
 
     if export_type == "h5":
@@ -298,10 +269,11 @@ def run_export(
     with open(meta_path, "w") as f:
         json.dump(
             {
+                "alpha": alpha,
+                "decay_kernel": "morse",  # TODO: reciprocal
+                "feature_dim": model.input_shape[1],
                 "hidden_layers": hidden_units,
                 "activation": model.layers[0].get_config()["activation"],
-                "alpha": alpha,
-                "feature_dim": model.input_shape[1],
             },
             f,
             indent=4,

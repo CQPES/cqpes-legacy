@@ -1,24 +1,19 @@
-import os
-
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
-import datetime
-import glob
 import importlib.util
 import inspect
-import json
-import shutil
-from dataclasses import asdict
-from typing import Callable
+import os
+from typing import Callable, Dict, List
 
 import numpy as np
 import tensorflow as tf
 import tf_levenberg_marquardt as lm
-from cqpes.types import CQPESData, TrainConfig
-from cqpes.utils.model import build_network
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
-from tensorflow.keras.callbacks import TensorBoard
+from tensorflow.keras.callbacks import TensorBoard  # type: ignore
+
+import cqpes  # noqa: F401
+from cqpes.types import CQPESData, TrainConfig
+from cqpes.utils.model import build_network
+from cqpes.utils.workspace import ExperimentWorkspace
 
 
 def _load_weighting_func() -> Callable:
@@ -34,7 +29,7 @@ def _load_weighting_func() -> Callable:
 
     spec = importlib.util.spec_from_file_location(
         name="weighting_module",
-        localation=weight_path,
+        location=weight_path,
     )
 
     if spec and spec.loader:
@@ -54,104 +49,63 @@ def _load_weighting_func() -> Callable:
     raise ImportError(f"[FATAL] Failed to load module from '{weight_path}'.")
 
 
+def _split_dataset(
+    indices: np.ndarray,
+    split_ratio: List[float],
+) -> Dict[str, np.ndarray]:
+    r_train, r_valid, r_test = split_ratio
+
+    train_idx, valid_idx = train_test_split(indices, test_size=(1 - r_train))
+
+    valid_idx, test_idx = train_test_split(
+        valid_idx, test_size=(r_test / (1 - r_train))
+    )
+
+    return {
+        "train": train_idx,
+        "valid": valid_idx,
+        "test": test_idx,
+    }
+
+
+def _save_indices(
+    subset_idx_map: Dict[str, np.ndarray],
+    workdir: str,
+) -> None:
+    for key, val in subset_idx_map.items():
+        np.savetxt(
+            os.path.join(workdir, f"{key}_idx.txt"),
+            val,
+            fmt="%d",
+        )
+
+
 def run_train(
     config: TrainConfig,
 ) -> None:
     WIDTH = 80
 
-    # 1. workdir
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_workdir = f"{config.workdir}_{timestamp}"
-    os.makedirs(run_workdir, exist_ok=True)
+    # 1. create context
+    workspace = ExperimentWorkspace.create(config.workdir)
 
-    print(f"  [{'WORKDIR':^10}] {run_workdir}")
+    print(f"  [{'WORKDIR':^10}] {workspace.path}")
 
-    config_snapshot = os.path.join(run_workdir, "train.json")
-
-    with open(config_snapshot, "w") as f:
-        json.dump(asdict(config), f, indent=4)
-
-    # for msa backend
-    msa_files = glob.glob(os.path.join(config.data, "*.so"))
-
-    for msa_file in msa_files:
-        shutil.copy2(
-            src=msa_file,
-            dst=os.path.join(run_workdir, os.path.basename(msa_file)),
-        )
-
-    # for jaxpip backend
-    json_gz_files = glob.glob(os.path.join(config.data, "*.json.gz"))
-
-    for json_gz_file in json_gz_files:
-        shutil.copy2(
-            src=json_gz_file,
-            dst=os.path.join(run_workdir, os.path.basename(json_gz_file)),
-        )
-
-    weight_src = os.path.abspath("weighting.py")
-
-    if os.path.exists(weight_src):
-        shutil.copy(weight_src, os.path.join(run_workdir, "weighting.py"))
-
-    # 2. load data & split
-    print(f"  [{'LOAD':^10}] Loading CQPES dataset from {config.data}...")
-
-    dataset = CQPESData.from_dir(config.data)
-
-    X = dataset.X[:, 1:]
-    y = dataset.y
-    V = dataset.V
-
-    artifacts = [
-        "alpha.npy",
-        "ref_energy.npy",
-        "p_min.npy",
-        "p_max.npy",
-        "V_min.npy",
-        "V_max.npy",
-    ]
-
-    for item in artifacts:
-        src = os.path.join(config.data, item)
-        if os.path.exists(src):
-            shutil.copy2(src, run_workdir)
-
-    index = np.arange(len(X)).astype(np.int32)
-    r_train, r_val, r_test = config.split
-
-    train_idx, valid_idx = train_test_split(index, test_size=(1 - r_train))
-    valid_idx, test_idx = train_test_split(
-        valid_idx, test_size=(r_test / (1 - r_train))
-    )
-
-    np.savetxt(
-        os.path.join(run_workdir, "train_idx.txt"),
-        train_idx,
-        fmt="%d",
-    )
-
-    np.savetxt(
-        os.path.join(run_workdir, "valid_idx.txt"),
-        valid_idx,
-        fmt="%d",
-    )
-
-    np.savetxt(
-        os.path.join(run_workdir, "test_idx.txt"),
-        test_idx,
-        fmt="%d",
-    )
-
-    print(
-        f"  [{'SPLIT':^10}] Train: {len(train_idx)} | "
-        f"Valid: {len(valid_idx)} | "
-        f"Test: {len(test_idx)}"
-    )
-
-    # 3. weighting
     weighting_func = _load_weighting_func()
 
+    # 2. backup
+    workspace.backup_artifacts(config.data, config)
+
+    # 3. data load & split
+    print(f"  [{'LOAD':^10}] Loading dataset from {config.data}...")
+
+    dataset = CQPESData.from_dir(config.data)
+    X, y, V = dataset.X[:, 1:], dataset.y, dataset.V
+
+    indices = np.arange(len(X))
+    subset_idx_map = _split_dataset(indices, config.split)
+    _save_indices(subset_idx_map, workspace.path)
+
+    # 4. weighting
     print(f"  [{'WEIGHT':^10}] Active weighting function:")
     print("\n")
 
@@ -167,13 +121,14 @@ def run_train(
         count=len(V),
     )
 
-    # 4. build nn
+    # 5. build network
     print(f"  [{'NETWORK':^10}] Constructing PIP-NN with LM Optimizer...")
 
     model = build_network(config, input_dim=X.shape[1])
 
-    # 5. lm optimizer
-    model_wrapper = lm.model.ModelWrapper(model)
+    # lm optimizer
+    model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
+
     model_wrapper.compile(
         optimizer=tf.keras.optimizers.SGD(learning_rate=config.fit.lr),
         loss=lm.loss.MeanSquaredError(),
@@ -188,10 +143,8 @@ def run_train(
     )
 
     # 6. config callbacks
-    ckpt_dir = os.path.join(run_workdir, "ckpt")
-    log_dir = os.path.join(run_workdir, "log")
-    os.makedirs(ckpt_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
+    ckpt_dir = workspace.get_subpath("ckpt")
+    log_dir = workspace.get_subpath("log")
 
     ckpt = ModelCheckpoint(
         filepath=os.path.join(
@@ -207,7 +160,9 @@ def run_train(
 
     # 7. start
     batch_size = (
-        len(train_idx) if config.fit.batch_size == -1 else config.fit.batch_size
+        len(subset_idx_map["train"])
+        if config.fit.batch_size == -1
+        else config.fit.batch_size
     )
 
     print(
@@ -219,12 +174,16 @@ def run_train(
     print("-" * WIDTH)
 
     model_wrapper.fit(
-        X[train_idx],
-        y[train_idx],
+        X[subset_idx_map["train"]],
+        y[subset_idx_map["train"]],
         batch_size=batch_size,
         epochs=config.fit.epoch,
-        sample_weight=weights[train_idx],
-        validation_data=(X[valid_idx], y[valid_idx], weights[valid_idx]),
+        sample_weight=weights[subset_idx_map["train"]],
+        validation_data=(
+            X[subset_idx_map["valid"]],
+            y[subset_idx_map["valid"]],
+            weights[subset_idx_map["valid"]],
+        ),
         callbacks=[tensorboard, ckpt],
         verbose=2,  # type: ignore
     )

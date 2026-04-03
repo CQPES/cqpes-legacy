@@ -4,6 +4,9 @@ from typing import Literal, Optional
 import numpy as np
 from ase.units import Bohr, Hartree
 
+import cqpes  # # noqa: F401
+from cqpes.utils.workspace import ExperimentWorkspace
+
 
 class CQPESBasePot(ABC):
     def __init__(
@@ -11,7 +14,7 @@ class CQPESBasePot(ABC):
         workdir: str,
         force_mode: Literal["analytical", "numerical"] = "analytical",
     ) -> None:
-        self.workdir = workdir
+        self.workspace = ExperimentWorkspace.from_existing(workdir)
         self.force_mode = force_mode
 
     def _standardize_coordinates(

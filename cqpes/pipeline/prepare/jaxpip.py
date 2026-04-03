@@ -1,20 +1,18 @@
+import gzip
 import os
 import shutil
 from typing import List, cast
 
 import jax
-
-jax.config.update("jax_enable_x64", True)
-
-import gzip
-
 import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
-from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from jax import numpy as jnp
 from jaxpip.descriptor import PolynomialDescriptor
+
+import cqpes  # noqa: F401
+from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 
 
 def v_calc_V(
@@ -34,6 +32,7 @@ def run_prepare_jaxpip(
     descriptor = PolynomialDescriptor.from_file(
         basis_file=basis_file,
         alpha=config.alpha,
+        decay_kernel="morse",  # TODO: Support reciprocal
         dtype=jnp.float64,
     )
 
@@ -66,7 +65,7 @@ def run_prepare_jaxpip(
     cqpes_data = CQPESData(
         xyz=xyz_list,
         alpha=config.alpha,
-        p=np.asarray(p_list),
+        p=p_list,
         V=V_list,
         ref_energy=ref_energy,
     )
