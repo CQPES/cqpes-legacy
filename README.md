@@ -26,10 +26,10 @@ Run the installer:
 
 ```bash
 # cpu version
-$ bash ./cqpes-cpu-2.0.2-Linux-x86_64.sh
+$ bash ./cqpes-cpu-2.1.0-Linux-x86_64.sh
 # cuda version
-$ cat cqpes-cu120-2.0.2-Linux-x86_64.sh.part* > cqpes-cu120-2.0.2-Linux-x86_64.sh
-$ bash ./cqpes-cu120-2.0.2-Linux-x86_64.sh
+$ cat cqpes-cu129-2.1.0-Linux-x86_64.sh.part* > cqpes-cu129-2.1.0-Linux-x86_64.sh
+$ bash ./cqpes-cu129-2.1.0-Linux-x86_64.sh
 ```
 
 ### Step 2: Install CQPES
