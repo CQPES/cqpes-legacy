@@ -3,15 +3,12 @@ import os
 from typing import Literal
 
 import numpy as np
-import tensorflow as tf
 from ase.units import Hartree
 
-import cqpes  # noqa: F401
 from cqpes.interface.potential import CQPESBasePot
-from cqpes.pipeline.prepare import v_calc_p
+from cqpes.pipeline.prepare.msa import v_calc_p
 from cqpes.types.data import CQPESData
 from cqpes.types.train import TrainConfig
-from cqpes.utils.model import build_network
 from cqpes.utils.msa import load_msa_so
 from cqpes.utils.workspace import ExperimentWorkspace
 
@@ -22,6 +19,12 @@ class CQPESMSAPot(CQPESBasePot):
         workdir: str,
         force_mode: Literal["analytical", "numerical"] = "analytical",
     ) -> None:
+        # lazy import
+        from cqpes._env import _setup_tensorflow
+
+        _setup_tensorflow()
+
+        # attributes
         self.workspace = ExperimentWorkspace.from_existing(workdir)
         self.force_mode = force_mode
 
@@ -48,6 +51,8 @@ class CQPESMSAPot(CQPESBasePot):
     def _load_physics(
         self,
     ) -> None:
+        import h5py
+
         config_path = os.path.join(self.workspace.path, "train.json")
 
         if not os.path.exists(config_path):
@@ -57,30 +62,44 @@ class CQPESMSAPot(CQPESBasePot):
 
         self.config = TrainConfig.from_json(config_path)
 
+        model_path = os.path.join(
+            self.workspace.get_subpath("export"),
+            "model.h5",
+        )
+
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"[FATAL] Integrated model.h5 missing: {model_path}"
+            )
+
         try:
-            phys_dict = {
-                k: np.load(os.path.join(self.workspace.path, f"{k}.npy"))
-                for k in [
-                    "p_min",
-                    "p_max",
-                    "V_min",
-                    "V_max",
-                    "ref_energy",
-                    "alpha",
-                ]
-            }
+            with h5py.File(model_path, "r") as f:
+                if "phys_metadata" not in f:
+                    raise KeyError(
+                        f"Legacy model detected! 'phys_metadata' not found in {model_path}. "
+                        f"Please re-run 'cqpes export -t h5'."
+                    )
 
-            self.p_min = phys_dict["p_min"][1:]
-            self.p_max = phys_dict["p_max"][1:]
-            self.V_min = phys_dict["V_min"].item()
-            self.V_max = phys_dict["V_max"].item()
+                g = f["phys_metadata"]
 
-            self.ref_energy = phys_dict["ref_energy"].item()
-            self.alpha = phys_dict["alpha"].item()
+                # --- A. 从 Attributes 读取标量 (Metadata) ---
+                self.alpha = float(g.attrs["alpha"])  # type: ignore
+                self.ref_energy = float(g.attrs["ref_energy"])  # type: ignore
+                self.V_min = float(g.attrs["V_min"])  # type: ignore
+                self.V_max = float(g.attrs["V_max"])  # type: ignore
+
+                # 兼容性处理
+                self.decay_kernel = g.attrs.get("decay_kernel", "morse")
+
+                # --- B. 从 Dataset 读取数组 (Heavy Data) ---
+                # 核心细节：我们在 export 时存的是 full vector (例如 83 维)
+                # 这里读取时立刻切掉 index 0，对齐 NN 输入 (82 维)
+                self.p_min = np.asarray(g["p_min"][1:])  # type: ignore
+                self.p_max = np.asarray(g["p_max"][1:])  # type: ignore
 
         except Exception as e:
             raise RuntimeError(
-                f"[ERROR] Failed to load physical artifacts: {e}"
+                f"[ERROR] Failed to extract physical artifacts from HDF5: {e}"
             )
 
     def _mount_msa(
@@ -100,9 +119,12 @@ class CQPESMSAPot(CQPESBasePot):
     def _build_network(
         self,
     ) -> None:
+        import tensorflow as tf
+
+        from cqpes.utils.model import build_network
+
         export_model_path = os.path.join(
-            self.workspace.path,
-            "export",
+            self.workspace.get_subpath("export"),
             "model.h5",
         )
 
@@ -176,7 +198,7 @@ class CQPESMSAPot(CQPESBasePot):
         results = ((V_eV / Hartree) + self.ref_energy) if return_au else V_eV
 
         if results.size == 1 and not isinstance(xyz, list):
-            return results.item()
+            return results.item()  # type: ignore
 
         return results
 
@@ -222,10 +244,10 @@ class CQPESMSAPot(CQPESBasePot):
         # p_feat = p_raw[:, 1:]
         X_scaled = CQPESData.rescale(p_raw[:, 1:], self.p_min, self.p_max)
 
-        grad_raw = self._tf_grad(
-            X=tf.convert_to_tensor(X_scaled, dtype=tf.float64)
-        ).numpy()
+        # network gradient
+        grad_raw = self._tf_grad(X_scaled).numpy()  # type: ignore
 
+        # scaling factor
         dV_dp_batch = grad_raw * self._V_p_scale
 
         results_forces = np.zeros((num_configs, num_atoms, 3), dtype=np.float64)

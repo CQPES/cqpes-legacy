@@ -1,6 +1,5 @@
 import tensorflow as tf
 
-import cqpes  # noqa: F401
 from cqpes.types.train import TrainConfig
 
 

@@ -4,15 +4,9 @@ import os
 from typing import Callable, Dict, List
 
 import numpy as np
-import tensorflow as tf
-import tf_levenberg_marquardt as lm
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
-from tensorflow.keras.callbacks import TensorBoard  # type: ignore
 
-import cqpes  # noqa: F401
 from cqpes.types import CQPESData, TrainConfig
-from cqpes.utils.model import build_network
 from cqpes.utils.workspace import ExperimentWorkspace
 
 
@@ -83,7 +77,17 @@ def _save_indices(
 def run_train(
     config: TrainConfig,
 ) -> None:
-    WIDTH = 80
+    # lazy import
+    from cqpes._env import _setup_tensorflow
+
+    _setup_tensorflow(use_gpu=True)
+
+    import tensorflow as tf
+    import tf_levenberg_marquardt as lm
+    from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
+    from tensorflow.keras.callbacks import TensorBoard  # type: ignore
+
+    from cqpes.utils.model import build_network
 
     # 1. create context
     workspace = ExperimentWorkspace.create(config.workdir)
@@ -171,7 +175,7 @@ def run_train(
         f"Batch Size: {batch_size}"
     )
 
-    print("-" * WIDTH)
+    print("-" * 80)
 
     model_wrapper.fit(
         X[subset_idx_map["train"]],

@@ -1,15 +1,10 @@
 import glob
 import os
-from typing import Literal
+from typing import Any, Literal
 
-import equinox as eqx
-import jax
 import numpy as np
 from ase.units import Hartree
-from jax import numpy as jnp
-from jaxpip.model import PolynomialNeuralNetwork
 
-import cqpes  # noqa: F401
 from cqpes.interface.potential import CQPESBasePot
 from cqpes.utils.workspace import ExperimentWorkspace
 
@@ -20,6 +15,15 @@ class CQPESJaxPIPPot(CQPESBasePot):
         workdir: str,
         force_mode: Literal["analytical", "numerical"] = "analytical",
     ) -> None:
+        # lazy import
+        from cqpes._env import _setup_jax
+
+        _setup_jax()
+
+        import equinox as eqx
+        import jax
+
+        # attributes
         self.workspace = ExperimentWorkspace.from_existing(workdir)
         self.force_mode = force_mode
 
@@ -38,7 +42,10 @@ class CQPESJaxPIPPot(CQPESBasePot):
 
     def _build_network(
         self,
-    ) -> PolynomialNeuralNetwork:
+    ) -> Any:  # PolynomialNeuralNetwork
+        # lazy import
+        from jaxpip.model import PolynomialNeuralNetwork
+
         # find basis json.gz
         json_gz_files = glob.glob(
             os.path.join(
@@ -87,6 +94,9 @@ class CQPESJaxPIPPot(CQPESBasePot):
         xyz: np.ndarray,
         return_au: bool = False,
     ) -> np.ndarray:
+        # lazy import
+        from jax import numpy as jnp
+
         xyz_arr = self._standardize_coordinates(xyz)
         xyz_jx = jnp.asarray(xyz_arr)
 
@@ -104,6 +114,9 @@ class CQPESJaxPIPPot(CQPESBasePot):
         self,
         xyz: np.ndarray,
     ) -> np.ndarray:
+        # lazy import
+        from jax import numpy as jnp
+
         xyz_arr = self._standardize_coordinates(xyz)
         xyz_jx = jnp.asarray(xyz_arr)
 

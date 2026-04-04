@@ -6,7 +6,6 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-import cqpes  # noqa: F401
 from cqpes import CQPESPot
 
 

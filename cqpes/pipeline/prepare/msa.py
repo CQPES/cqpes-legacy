@@ -9,7 +9,6 @@ from ase.io import read
 from ase.units import Hartree
 from scipy.spatial import distance
 
-import cqpes  # noqa: F401
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from cqpes.utils.msa import load_msa_so
 

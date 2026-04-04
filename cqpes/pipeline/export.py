@@ -1,16 +1,12 @@
 import glob
 import json
 import os
-from typing import Literal
+from typing import Any, Literal
 
-import jax
+import h5py
 import numpy as np
-import tensorflow as tf
-import tf_levenberg_marquardt as lm
 
-import cqpes  # noqa: F401
 from cqpes.types import TrainConfig
-from cqpes.utils.model import build_network
 from cqpes.utils.train import find_best_checkpoint
 from cqpes.utils.workspace import ExperimentWorkspace
 
@@ -23,7 +19,7 @@ _ACT_MAP = {
 
 
 def _model2potfit(
-    model: tf.keras.Model,
+    model: Any,  # tf.keras.Model
     output_dir: str,
     p_min: np.ndarray,
     p_max: np.ndarray,
@@ -100,27 +96,57 @@ def _model2potfit(
 
 
 def _model2keras(
-    model: tf.keras.Model,
+    model: Any,  # tf.keras.Model
     output_dir: str,
-) -> str:
-    h5_path = os.path.join(output_dir, "model.h5")
-    model.save(h5_path)
-
-    return h5_path
-
-
-def _model2jaxpip(
-    model: tf.keras.Model,
-    basis_file: str,
     alpha: float,
-    output_dir: str,
+    ref_energy: float,
     p_min: np.ndarray,
     p_max: np.ndarray,
     V_min: float,
     V_max: float,
 ) -> str:
+    h5_path = os.path.join(output_dir, "model.h5")
+
+    # save keras weights
+    model.save(h5_path)
+
+    # save phys
+    with h5py.File(h5_path, "a") as f:
+        g = f.require_group("phys_metadata")
+
+        g.attrs["alpha"] = alpha
+        g.attrs["ref_energy"] = ref_energy
+
+        g.attrs["V_min"] = V_min
+        g.attrs["V_max"] = V_max
+
+        for key, val in {"p_min": p_min, "p_max": p_max}.items():
+            if key in g:
+                del g[key]
+
+            g.create_dataset(name=key, data=val)
+
+    return h5_path
+
+
+def _model2jaxpip(
+    model: Any,  # tf.keras.Model
+    basis_file: str,
+    output_dir: str,
+    alpha: float,
+    p_min: np.ndarray,
+    p_max: np.ndarray,
+    V_min: float,
+    V_max: float,
+) -> str:
+    from cqpes._env import _setup_jax
+
+    _setup_jax()
+
     import equinox as eqx
+    import jax
     from jax import numpy as jnp
+
     from jaxpip.descriptor import PolynomialDescriptor
     from jaxpip.model import FeatureScaler, PolynomialNeuralNetwork
 
@@ -136,7 +162,7 @@ def _model2jaxpip(
     skeleton = PolynomialNeuralNetwork(
         descriptor=descriptor,
         hidden_layers=hidden_units,
-        key=jax.random.PRNGKey(0),
+        key=jax.random.PRNGKey(114514),
         activation=model.layers[0].get_config()["activation"],
     )
 
@@ -187,6 +213,15 @@ def run_export(
     workdir_path: str,
     export_type: Literal["h5", "potfit", "jaxpip"],
 ) -> None:
+    # lazy import
+    from cqpes._env import _setup_tensorflow
+
+    _setup_tensorflow()
+
+    import tf_levenberg_marquardt as lm
+
+    from cqpes.utils.model import build_network
+
     # 1. existing workspace
     workspace = ExperimentWorkspace.from_existing(workdir_path)
     config_path = os.path.join(workspace.path, "train.json")
@@ -209,11 +244,15 @@ def run_export(
 
     # 3. load morse range parameter &  scale factor
     alpha = np.load(os.path.join(workspace.path, "alpha.npy")).item()
+    ref_energy = np.load(os.path.join(workspace.path, "ref_energy.npy")).item()
 
     phys_dict = {
         k: np.load(os.path.join(workspace.path, f"{k}.npy"))
         for k in ["p_min", "p_max", "V_min", "V_max"]
     }
+
+    for k in ["V_min", "V_max"]:
+        phys_dict[k] = phys_dict[k].item()
 
     # 4. auto detect checkpoint
     best_ckpt_path, _ = find_best_checkpoint(workspace.path)
@@ -230,7 +269,13 @@ def run_export(
     os.makedirs(export_dir, exist_ok=True)
 
     if export_type == "h5":
-        model_h5 = _model2keras(model, export_dir)
+        model_h5 = _model2keras(
+            model,
+            output_dir=export_dir,
+            alpha=alpha,
+            ref_energy=ref_energy,
+            **phys_dict,
+        )
 
         print(
             f"  [{'H5':^10}] Saved pure Keras model to: "
@@ -252,8 +297,8 @@ def run_export(
         model_eqx = _model2jaxpip(
             model,
             basis_file=basis_file,
-            alpha=alpha,
             output_dir=export_dir,
+            alpha=alpha,
             **phys_dict,
         )
 
@@ -270,6 +315,7 @@ def run_export(
         json.dump(
             {
                 "alpha": alpha,
+                "ref_energy": ref_energy,
                 "decay_kernel": "morse",  # TODO: reciprocal
                 "feature_dim": model.input_shape[1],
                 "hidden_layers": hidden_units,

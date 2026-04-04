@@ -9,10 +9,9 @@ from ase import Atoms
 from ase.io import read
 from ase.units import Hartree
 from jax import numpy as jnp
-from jaxpip.descriptor import PolynomialDescriptor
 
-import cqpes  # noqa: F401
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
+from jaxpip.descriptor import PolynomialDescriptor
 
 
 def v_calc_V(
@@ -28,6 +27,10 @@ def run_prepare_jaxpip(
     config: PrepareConfig,
     basis_file: str,
 ) -> PrepareSummary:
+    from cqpes._env import _setup_jax
+
+    _setup_jax()
+
     # load jaxpip basis
     descriptor = PolynomialDescriptor.from_file(
         basis_file=basis_file,

@@ -4,13 +4,10 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import scienceplots  # noqa: F401
-import tf_levenberg_marquardt as lm
 from matplotlib import pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-import cqpes  # noqa: F401
 from cqpes.types import CQPESData, TrainConfig
-from cqpes.utils.model import build_network
 from cqpes.utils.train import find_best_checkpoint
 from cqpes.utils.workspace import ExperimentWorkspace
 
@@ -18,6 +15,15 @@ from cqpes.utils.workspace import ExperimentWorkspace
 def run_test(
     workdir_path: str,
 ) -> None:
+    # lazy import
+    from cqpes._env import _setup_tensorflow
+
+    _setup_tensorflow()
+
+    import tf_levenberg_marquardt as lm
+
+    from cqpes.utils.model import build_network
+
     # 1. existing workspace
     workspace = ExperimentWorkspace.from_existing(workdir_path)
     eval_dir = workspace.get_subpath("eval")

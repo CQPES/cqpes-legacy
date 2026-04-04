@@ -1,24 +1,8 @@
 import argparse
-import os
 import sys
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 from typing import Literal
-
-import cqpes  # noqa: F401
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-try:
-    import absl.logging
-
-    absl.logging.set_verbosity(absl.logging.ERROR)
-
-    import tensorflow as tf
-
-    tf.get_logger().setLevel("ERROR")
-except ImportError:
-    pass
 
 import argcomplete
 
@@ -28,9 +12,6 @@ warnings.showwarning = custom_warning
 
 warnings.filterwarnings("ignore", message=".*HDF5 file.*")
 warnings.filterwarnings("ignore", message=".*native Keras format.*")
-
-
-_GPU_COMMAND = ["train"]
 
 
 def get_version() -> str:
@@ -290,14 +271,7 @@ def main() -> None:
     )
 
     argcomplete.autocomplete(parser)
-
     args = parser.parse_args()
-
-    if args.command not in _GPU_COMMAND:
-        try:
-            tf.config.set_visible_devices([], "GPU")
-        except RuntimeError:
-            pass
 
     if args.command == "prepare":
         if (args.msa is not None) and (args.jaxpip is not None):
@@ -342,7 +316,7 @@ def _run_prepare_msa(
     config_path: str,
     msa_path: str,
 ) -> None:
-    from cqpes.pipeline.prepare import run_prepare_msa
+    from cqpes.pipeline.prepare.msa import run_prepare_msa
     from cqpes.types.prepare import PrepareConfig
     from cqpes.utils.logger import print_header
 
@@ -362,7 +336,7 @@ def _run_prepare_jaxpip(
     config_path: str,
     basis_file: str,
 ) -> None:
-    from cqpes.pipeline.prepare import run_prepare_jaxpip
+    from cqpes.pipeline.prepare.jaxpip import run_prepare_jaxpip
     from cqpes.types.prepare import PrepareConfig
     from cqpes.utils.logger import print_header
 
@@ -456,7 +430,7 @@ def _run_tasks(
     try:
         run_task(args)
     except Exception as e:
-        print(f"\n[ERROR] Prediction failed: {e}", file=sys.stderr)
+        print(f"\n[ERROR] Task excution failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 

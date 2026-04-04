@@ -2,8 +2,6 @@ import glob
 import os
 from typing import Literal, Optional
 
-import cqpes  # noqa: F401
-
 from .base import CQPESBasePot
 
 

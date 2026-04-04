@@ -12,7 +12,6 @@ from ase.optimize import BFGS
 from ase.vibrations import Vibrations
 from tqdm import tqdm
 
-import cqpes  # noqa: F401
 from cqpes.interface.ase import CQPESCalculator
 from cqpes.utils.logger import print_header
 
