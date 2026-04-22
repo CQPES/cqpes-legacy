@@ -53,8 +53,7 @@ def run_prepare_jaxpip(
         )
 
     # p
-    p_list = jax.vmap(descriptor)(jnp.asarray(xyz_list))
-    p_list = np.asarray(p_list)
+    p_list = np.asarray(jax.lax.map(descriptor, jnp.asarray(xyz_list)))
 
     # ref energy
     if config.ref_energy is not None:
