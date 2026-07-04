@@ -145,6 +145,16 @@ Train the PIP-NN model using Levenberg-Marquardt (LM) or other optimizers define
 ```
 
 The trained models and training logs will be saved in a timestamped output path for model, e.g., `model_20260315_123751`.
+ 
+#### Weighting Function
+ 
+By default, all samples are weighted equally. To emphasize specific energy regions (e.g., near the potential well), provide a custom weighting function via the `-w` / `--weighting` flag:
+ 
+```bash
+(cqpes-env)$ cqpes train config/train.json -w weighting.py
+```
+
+If the flag is omitted, CQPES reports that uniform weighting is active.
 
 ### Step 4. Model Evaluation
 
@@ -204,11 +214,11 @@ from cqpes import CQPESPot, CQPESCalculator
 
 ### Fortran
 
-[`example/CH4/interface/Fortran`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Fortran)
+[`examples/CH4/interface/Fortran`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Fortran)
 
 ### Gaussian
 
-[`example/CH4/interface/Gaussian`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Gaussian)
+[`examples/CH4/interface/Gaussian`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Gaussian)
 
 ### Polyrate
 
@@ -216,7 +226,7 @@ from cqpes import CQPESPot, CQPESCalculator
 
 ### VENUS96
 
-[`example/CH4/interface/VENUS96C`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/VENUS96C)
+[`examples/CH4/interface/VENUS96C`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/VENUS96C)
 
 ### Caracal
 
