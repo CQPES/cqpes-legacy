@@ -2,6 +2,7 @@ import importlib.util
 import inspect
 import os
 from typing import Callable, Dict, List
+from typing import Optional
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -10,16 +11,28 @@ from cqpes.types import CQPESData, TrainConfig
 from cqpes.utils.workspace import ExperimentWorkspace
 
 
-def _load_weighting_func() -> Callable:
+def _load_weighting_func(
+    weighting_path: Optional[str],
+) -> Callable:
     def default_weighting(
         v: float,
     ) -> float:
         return 1.0
 
-    weight_path = os.path.abspath("weighting.py")
+    if weighting_path is None:
+        print(
+            f"  [{'WEIGHT':^10}] Uniform weighting (no --weighting specified)"
+        )
+        print()
+
+        return default_weighting
+
+    weight_path = os.path.abspath(weighting_path)
 
     if not os.path.exists(weight_path):
-        return default_weighting
+        raise FileNotFoundError(
+            f"[FATAL] Weighting file not found: {weight_path}"
+        )
 
     spec = importlib.util.spec_from_file_location(
         name="weighting_module",
@@ -31,7 +44,7 @@ def _load_weighting_func() -> Callable:
         spec.loader.exec_module(module)
 
         if hasattr(module, "weighting"):
-            return module.weighting
+            func = module.weighting
         else:
             raise AttributeError(
                 f"[FATAL] Found custom weighting file at '{weight_path}', "
@@ -39,6 +52,16 @@ def _load_weighting_func() -> Callable:
                 "Please define 'def weighting(v):' "
                 "or remove the file to use defaults."
             )
+
+        print(f"  [{'WEIGHT':^10}] Active weighting function:")
+        print()
+
+        for line in inspect.getsource(func).strip().split("\n"):
+            print(f"             {line}")
+
+        print()
+
+        return func
 
     raise ImportError(f"[FATAL] Failed to load module from '{weight_path}'.")
 
@@ -76,6 +99,7 @@ def _save_indices(
 
 def run_train(
     config: TrainConfig,
+    weighting: Optional[str] = None,
 ) -> None:
     # lazy import
     from cqpes._env import _setup_tensorflow
@@ -94,10 +118,10 @@ def run_train(
 
     print(f"  [{'WORKDIR':^10}] {workspace.path}")
 
-    weighting_func = _load_weighting_func()
+    weighting_func = _load_weighting_func(weighting)
 
     # 2. backup
-    workspace.backup_artifacts(config.data, config)
+    workspace.backup_artifacts(config.data, config, weighting=weighting)
 
     # 3. data load & split
     print(f"  [{'LOAD':^10}] Loading dataset from {config.data}...")
@@ -110,15 +134,6 @@ def run_train(
     _save_indices(subset_idx_map, workspace.path)
 
     # 4. weighting
-    print(f"  [{'WEIGHT':^10}] Active weighting function:")
-    print("\n")
-
-    for line in inspect.getsource(weighting_func).strip().split("\n"):
-        print(f"             {line}")
-
-    print("\n")
-
-    # for better performance
     weights = np.fromiter(
         (weighting_func(v) for v in V),
         dtype=np.float64,
