@@ -5,6 +5,8 @@ import shutil
 from dataclasses import asdict
 from datetime import datetime
 
+from typing import Optional
+
 from cqpes.types.train import TrainConfig
 
 
@@ -42,6 +44,7 @@ class ExperimentWorkspace:
         self,
         data_dir: str,
         config: TrainConfig,
+        weighting: Optional[str] = None,
     ) -> None:
         exts = ["*.so", "*.json.gz", "*.npy"]
 
@@ -49,10 +52,11 @@ class ExperimentWorkspace:
             for f in glob.glob(os.path.join(data_dir, ext)):
                 shutil.copy2(f, self.path)
 
-        weight_script = os.path.abspath("weighting.py")
+        if weighting is not None:
+            weight_script = os.path.abspath(weighting)
 
-        if os.path.exists(weight_script):
-            shutil.copy2(weight_script, self.path)
+            if os.path.exists(weight_script):
+                shutil.copy2(weight_script, self.path)
 
         config_path = os.path.join(self.path, "train.json")
 

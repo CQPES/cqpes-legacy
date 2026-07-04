@@ -2,7 +2,7 @@ import argparse
 import sys
 import warnings
 from importlib.metadata import PackageNotFoundError, version
-from typing import Literal
+from typing import Literal, Optional
 
 import argcomplete
 
@@ -96,6 +96,13 @@ def main() -> None:
     train_parser.add_argument(
         "config",
         help="Path to train.json",
+    )
+
+    train_parser.add_argument(
+        "-w",
+        "--weighting",
+        default=None,
+        help="Path to custom weighting function (.py)",
     )
 
     # 3. test
@@ -291,7 +298,7 @@ def main() -> None:
                 basis_file=args.jaxpip,
             )
     elif args.command == "train":
-        _run_train(args.config)
+        _run_train(args.config, weighting=args.weighting)
     elif args.command == "test":
         _run_test(args.workdir)
     elif args.command == "export":
@@ -354,6 +361,7 @@ def _run_prepare_jaxpip(
 
 def _run_train(
     config_path: str,
+    weighting: Optional[str] = None,
 ) -> None:
     from cqpes.pipeline.train import run_train
     from cqpes.types.train import TrainConfig
@@ -362,7 +370,7 @@ def _run_train(
         print_header("TRAINING PIP-NN")
 
         config = TrainConfig.from_json(config_path)
-        run_train(config)
+        run_train(config, weighting=weighting)
 
     except Exception as e:
         print(f"\n[ERROR] Training failed: {e}", file=sys.stderr)
