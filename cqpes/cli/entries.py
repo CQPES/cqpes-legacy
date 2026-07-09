@@ -216,8 +216,10 @@ def main() -> None:
     ctrl_group.add_argument(
         "--fmax",
         type=float,
-        default=1.0e-05,
-        help="Force threshold (eV/Ang) for Opt & TS",
+        default=None,
+        help=(
+            "Force threshold (eV/Ang). Default: 1e-05 for Opt/TS, 0.05 for IRC"
+        ),
     )
 
     # (2) freq
@@ -237,6 +239,14 @@ def main() -> None:
             "Displacement (Ang) for frequency analysis.\n"
             "Gaussian-recommended value. (https://gaussian.com/freq)"
         ),
+    )
+
+    # (2.5) irc
+    task_group.add_argument(
+        "--irc",
+        action="store_true",
+        default=False,
+        help="Intrinsic Reaction Coordinate from a TS geometry (requires sella)",
     )
 
     # (3) md
@@ -436,9 +446,25 @@ def _run_tasks(
     from cqpes.pipeline.run import run_task
 
     try:
-        run_task(args)
+        run_task(
+            workdir=args.workdir,
+            xyz=args.xyz,
+            opt=args.opt,
+            fmax=args.fmax,
+            freq=args.freq,
+            freq_delta=args.freq_delta,
+            md=args.md,
+            temp=args.temp,
+            dt=args.dt,
+            steps=args.steps,
+            output=args.output,
+            irc=args.irc,
+        )
     except Exception as e:
-        print(f"\n[ERROR] Task excution failed: {e}", file=sys.stderr)
+        print(
+            f"\n[ERROR] Task execution failed: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 
