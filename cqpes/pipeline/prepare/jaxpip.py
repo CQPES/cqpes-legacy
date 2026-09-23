@@ -13,6 +13,9 @@ from jax import numpy as jnp
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from jaxpip.descriptor import PolynomialDescriptor
 
+from cqpes.pipeline.prepare.msa import load_force_file
+from . import hint_force_file
+
 
 def v_calc_V(
     energy_list: np.ndarray,
@@ -23,11 +26,31 @@ def v_calc_V(
     return V_list
 
 
+def v_calc_dp(
+    xyz_list: np.ndarray,
+    descriptor,
+) -> np.ndarray:
+    """d(p)/d(xyz) with shape (N, 3*Natoms, Npip) via forward-mode AD,
+    same layout as the MSA dbemsav path."""
+    jac_fn = jax.jacfwd(descriptor)
+
+    # jacfwd output is output-first: (N, Npip, Natoms, 3)
+    dp_list = jax.lax.map(jac_fn, jnp.asarray(xyz_list))
+
+    n_configs, n_atoms, _ = xyz_list.shape
+
+    dp_list = np.transpose(np.asarray(dp_list), (0, 2, 3, 1))
+
+    return dp_list.reshape(n_configs, 3 * n_atoms, -1)
+
+
 def run_prepare_jaxpip(
     config: PrepareConfig,
     basis_file: str,
 ) -> PrepareSummary:
     from cqpes._env import _setup_jax
+
+    hint_force_file(config)
 
     _setup_jax()
 
@@ -55,6 +78,12 @@ def run_prepare_jaxpip(
     # p
     p_list = np.asarray(jax.lax.map(descriptor, jnp.asarray(xyz_list)))
 
+    # d(p)/d(xyz), only needed for force-aided training
+    dp_list = None
+
+    if config.force is not None:
+        dp_list = v_calc_dp(xyz_list, descriptor)
+
     # ref energy
     if config.ref_energy is not None:
         ref_energy = config.ref_energy
@@ -63,6 +92,12 @@ def run_prepare_jaxpip(
 
     V_list = v_calc_V(energy_list, ref_energy)
 
+    # forces in eV/Angstrom
+    F_list = None
+
+    if config.force is not None:
+        F_list = load_force_file(config.force, len(xyz_list), xyz_list.shape[1])
+
     # dataset
     cqpes_data = CQPESData(
         xyz=xyz_list,
@@ -70,6 +105,8 @@ def run_prepare_jaxpip(
         p=p_list,
         V=V_list,
         ref_energy=ref_energy,
+        F=F_list,
+        dp=dp_list,
     )
 
     output_path = cqpes_data.to_dir(config.output)

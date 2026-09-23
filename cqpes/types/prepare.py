@@ -16,6 +16,9 @@ class PrepareConfig:
     alpha: float
     ref_energy: Optional[float] = None
 
+    # forces (optional), plain text (N x 3*Natoms) in eV/Angstrom
+    force: Optional[str] = field(default=None, metadata={"must_exist": True})
+
     def __post_init__(
         self,
     ) -> None:

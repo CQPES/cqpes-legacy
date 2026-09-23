@@ -46,15 +46,20 @@ class CQPESCalculator(Calculator):
     ) -> None:
         super().calculate(atoms, properties, system_changes)
 
-        self.results["energy"] = self.pot.get_energy(
-            self.atoms.get_positions(),  # type: ignore
-            return_au=False,
-        )
+        positions = self.atoms.get_positions()  # type: ignore
 
         if "forces" in properties:
-            self.results["forces"] = self.pot.get_forces(
-                self.atoms.get_positions(),  # type: ignore
+            # single fused pass on backends that support it
+            energy, forces = self.pot.get_energy_and_forces(
+                positions,
                 force_mode=self.parameters["force_mode"],
                 delta=self.parameters["delta"],
+            )
+
+            self.results["energy"] = energy
+            self.results["forces"] = forces
+        else:
+            self.results["energy"] = self.pot.get_energy(
+                positions,
                 return_au=False,
             )

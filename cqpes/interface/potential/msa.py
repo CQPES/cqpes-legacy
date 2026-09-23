@@ -1,9 +1,9 @@
 import glob
 import os
-from typing import Literal
+from typing import Literal, Optional
 
 import numpy as np
-from ase.units import Hartree
+from ase.units import Bohr, Hartree
 
 from cqpes.interface.potential import CQPESBasePot
 from cqpes.pipeline.prepare.msa import v_calc_p
@@ -121,6 +121,10 @@ class CQPESMSAPot(CQPESBasePot):
     ) -> None:
         import tensorflow as tf
 
+        from cqpes.utils.model import (
+            forward_collect,
+            input_grad_from_activations,
+        )
         from cqpes.utils.model import build_network
 
         export_model_path = os.path.join(
@@ -150,23 +154,21 @@ class CQPESMSAPot(CQPESBasePot):
             ],
             jit_compile=True,
         )
-        def _get_grad(
+        def _forward_grad(
             X: tf.Tensor,
-        ) -> tf.Tensor:
-            with tf.GradientTape() as tape:
-                tape.watch(X)
+        ):
+            """Fused (y, dy/dX): one forward pass + the analytic matmul chain
+            W1 diag(s1') ... W_out, identical (to round-off) to a
+            GradientTape backward but without a nested tape."""
+            acts = forward_collect(self.net, X)
 
-                y = self.net(X, training=False)
+            y = acts[-1]
 
-            return tf.convert_to_tensor(
-                tape.gradient(
-                    y,
-                    X,
-                    unconnected_gradients=tf.UnconnectedGradients.ZERO,
-                )
-            )
+            dydx = input_grad_from_activations(self.net, acts)
 
-        self._tf_grad = _get_grad
+            return y, dydx
+
+        self._tf_forward_grad = _forward_grad
 
     def get_energy(
         self,
@@ -188,8 +190,10 @@ class CQPESMSAPot(CQPESBasePot):
         # 2. p -> X in [-1, 1]
         x_scaled = CQPESData.rescale(p_feat, self.p_min, self.p_max)
 
-        # 3. X -> y
-        y_scaled = self.net(x_scaled, training=False).numpy()
+        # 3. X -> y (grad discarded, single traced graph shared with forces)
+        y_scaled, _ = self._tf_forward_grad(x_scaled)
+
+        y_scaled = y_scaled.numpy()
 
         # 4. y in [-1, 1] -> V
         V_eV = CQPESData.unscale(y_scaled, self.V_min, self.V_max).flatten()
@@ -208,6 +212,85 @@ class CQPESMSAPot(CQPESBasePot):
     ) -> np.ndarray:
         # (num_configs, num_atoms, 3)
         xyz_arr = self._standardize_coordinates(xyz)
+
+        # 1. calculate p & network input X
+        p_raw = v_calc_p(
+            xyz_list=xyz_arr,
+            alpha=self.alpha,
+            basis=self.msa.basis,
+        )
+
+        # p_feat = p_raw[:, 1:]
+        X_scaled = CQPESData.rescale(p_raw[:, 1:], self.p_min, self.p_max)
+
+        # network gradient (analytic chain, y discarded)
+        _, grad_raw = self._tf_forward_grad(X_scaled)
+
+        # scaling factor
+        dV_dp_batch = grad_raw.numpy() * self._V_p_scale
+
+        return self._assemble_forces(xyz, xyz_arr, p_raw, dV_dp_batch)
+
+    def get_energy_and_forces(
+        self,
+        xyz: np.ndarray,
+        return_au: bool = False,
+        force_mode: Optional[str] = None,
+        **kwargs,
+    ) -> tuple:
+        target_mode = (force_mode or self.force_mode).lower()
+
+        if target_mode != "analytical":
+            return super().get_energy_and_forces(
+                xyz,
+                return_au=return_au,
+                force_mode=force_mode,
+                **kwargs,
+            )
+
+        # (num_configs, num_atoms, 3)
+        xyz_arr = self._standardize_coordinates(xyz)
+
+        # single PIP + single NN pass for both properties
+        p_raw = v_calc_p(
+            xyz_list=xyz_arr,
+            alpha=self.alpha,
+            basis=self.msa.basis,
+        )
+
+        X_scaled = CQPESData.rescale(p_raw[:, 1:], self.p_min, self.p_max)
+
+        y_scaled, grad_raw = self._tf_forward_grad(X_scaled)
+
+        V_eV = CQPESData.unscale(
+            y_scaled.numpy(),
+            self.V_min,
+            self.V_max,
+        ).flatten()
+
+        energy = ((V_eV / Hartree) + self.ref_energy) if return_au else V_eV
+
+        dV_dp_batch = grad_raw.numpy() * self._V_p_scale
+
+        forces = self._assemble_forces(xyz, xyz_arr, p_raw, dV_dp_batch)
+
+        if return_au:
+            forces = forces * (Bohr / Hartree)
+
+        if np.asarray(energy).size == 1 and not isinstance(xyz, list):
+            energy = np.asarray(energy).item()
+
+        return energy, forces
+
+    def _assemble_forces(
+        self,
+        xyz_input,
+        xyz_arr: np.ndarray,
+        p_raw: np.ndarray,
+        dV_dp_batch: np.ndarray,
+    ) -> np.ndarray:
+        """Chain dV/dp through the PIP basis (MSA dbemsav) to cartesian
+        forces. p_raw and dV_dp_batch are per-config aligned with xyz_arr."""
         num_configs = xyz_arr.shape[0]
         num_atoms = xyz_arr.shape[1]
         num_carts = 3 * num_atoms
@@ -233,22 +316,6 @@ class CQPESMSAPot(CQPESBasePot):
             and (self._num_pairs is not None)
             and (self._drdx_buffer is not None)
         )
-
-        # 1. calculate p & network input X
-        p_raw = v_calc_p(
-            xyz_list=xyz_arr,
-            alpha=self.alpha,
-            basis=self.msa.basis,
-        )
-
-        # p_feat = p_raw[:, 1:]
-        X_scaled = CQPESData.rescale(p_raw[:, 1:], self.p_min, self.p_max)
-
-        # network gradient
-        grad_raw = self._tf_grad(X_scaled).numpy()  # type: ignore
-
-        # scaling factor
-        dV_dp_batch = grad_raw * self._V_p_scale
 
         results_forces = np.zeros((num_configs, num_atoms, 3), dtype=np.float64)
 
@@ -287,7 +354,7 @@ class CQPESMSAPot(CQPESBasePot):
 
             results_forces[i] = forces_flat.reshape(self._num_atoms, 3)
 
-        if num_configs == 1 and not isinstance(xyz, list):
+        if num_configs == 1 and not isinstance(xyz_input, list):
             return results_forces[0]
 
         return results_forces

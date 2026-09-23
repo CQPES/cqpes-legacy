@@ -111,7 +111,7 @@ def run_train(
     from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
     from tensorflow.keras.callbacks import TensorBoard  # type: ignore
 
-    from cqpes.utils.model import build_network
+    from cqpes.utils.model import PIPNNForceModel, build_network
 
     # 1. create context
     workspace = ExperimentWorkspace.create(config.workdir)
@@ -129,9 +129,54 @@ def run_train(
     dataset = CQPESData.from_dir(config.data)
     X, y, V = dataset.X[:, 1:], dataset.y, dataset.V
 
-    indices = np.arange(len(X))
+    n_samples = len(X)
+
+    indices = np.arange(n_samples)
     subset_idx_map = _split_dataset(indices, config.split)
     _save_indices(subset_idx_map, workspace.path)
+
+    # 3.5 force-aided fitting context
+    # residual layout: [y | sqrt(force_weight) * F] per sample, with
+    # F = -dV/dxyz assembled inside PIPNNForceModel from the constant
+    # chain dV/dy * dX/dp (folded into v_p_scale) and dp/dxyz (packed input)
+    has_forces = dataset.F is not None
+
+    if has_forces:
+        if dataset.dp is None:
+            raise RuntimeError(
+                f"[FATAL] Dataset has forces but no 'dp.npy' in {config.data}. "
+                "Please re-run 'cqpes prepare' with the 'force' entry set."
+            )
+
+        force_weight = config.fit.force_weight
+
+        n_cart = dataset.F.shape[1] * 3
+
+        fit_x = np.concatenate(
+            [
+                X,
+                dataset.dp[:, :, 1:].reshape((n_samples, -1)),
+            ],
+            axis=1,
+        )
+
+        fit_y = np.concatenate(
+            [
+                y.reshape((-1, 1)),
+                np.sqrt(force_weight)
+                * dataset.F.reshape((n_samples, -1)),
+            ],
+            axis=1,
+        )
+
+        print(
+            f"  [{'FORCE':^10}] Force-aided fitting enabled | "
+            f"force_weight: {force_weight} | "
+            f"residuals per sample: {1 + n_cart}"
+        )
+    else:
+        force_weight = config.fit.force_weight
+        fit_x, fit_y = X, y
 
     # 4. weighting
     weights = np.fromiter(
@@ -141,9 +186,25 @@ def run_train(
     )
 
     # 5. build network
-    print(f"  [{'NETWORK':^10}] Constructing PIP-NN with LM Optimizer...")
+    if has_forces:
+        print(f"  [{'NETWORK':^10}] Constructing PIP-NN (forces + energy) with LM Optimizer...")
 
-    model = build_network(config, input_dim=X.shape[1])
+        v_p_scale = (dataset.V_max - dataset.V_min) / (
+            dataset.p_max[1:] - dataset.p_min[1:]
+        )
+
+        model = PIPNNForceModel(
+            network=build_network(config, input_dim=X.shape[1]),
+            n_cart=n_cart,
+            v_p_scale=v_p_scale,
+            force_weight=force_weight,
+        )
+
+        model.build(input_shape=(None, fit_x.shape[1]))
+    else:
+        print(f"  [{'NETWORK':^10}] Constructing PIP-NN with LM Optimizer...")
+
+        model = build_network(config, input_dim=X.shape[1])
 
     # lm optimizer
     model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
@@ -193,14 +254,14 @@ def run_train(
     print("-" * 80)
 
     model_wrapper.fit(
-        X[subset_idx_map["train"]],
-        y[subset_idx_map["train"]],
+        fit_x[subset_idx_map["train"]],
+        fit_y[subset_idx_map["train"]],
         batch_size=batch_size,
         epochs=config.fit.epoch,
         sample_weight=weights[subset_idx_map["train"]],
         validation_data=(
-            X[subset_idx_map["valid"]],
-            y[subset_idx_map["valid"]],
+            fit_x[subset_idx_map["valid"]],
+            fit_y[subset_idx_map["valid"]],
             weights[subset_idx_map["valid"]],
         ),
         callbacks=[tensorboard, ckpt],

@@ -156,6 +156,30 @@ By default, all samples are weighted equally. To emphasize specific energy regio
 
 If the flag is omitted, CQPES reports that uniform weighting is active.
 
+#### Force-Aided Fitting (Gradients)
+
+CQPES can fit energies and forces simultaneously. Provide a force file in your `prepare.json`:
+
+```json
+{
+    "xyz": "rawdata/CH4.xyz",
+    "energy": "rawdata/CH4_energy.dat",
+    "force": "rawdata/CH4_force.dat",
+    "alpha": 1.0,
+    "output": "data"
+}
+```
+
+Forces are plain text (`N x 3*Natoms`, atom-major) in eV/Angstrom. During `prepare`, the PIP Jacobian `dp/dxyz` is stored in the dataset (`dbemsav` for the `MSA` backend, forward-mode AD for `JaxPIP`). During training, the force residuals
+
+```
+F = -dV/dxyz = -(dV/dy · dX/dp · dp/dxyz) · (dy/dX)
+```
+
+are assembled per sample — `dy/dX` via an analytic matmul chain, the constant factors folded into a scale vector — and appended to the LM residual vector, so `tf_levenberg_marquardt` fits energies and forces in one shot (fully FP64). The relative weight of the force term is controlled by `fit.force_weight` in `train.json` (`loss = MSE(E) + force_weight * MSE(F)`).
+
+See [`examples/CH4-with-forces`](examples/CH4-with-forces) for a complete run.
+
 ### Step 4. Model Evaluation
 
 Evaluate the accuracy of your trained PES against the test set:

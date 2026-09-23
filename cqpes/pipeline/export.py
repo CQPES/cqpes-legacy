@@ -9,7 +9,6 @@ import numpy as np
 from cqpes.types import TrainConfig
 from cqpes.utils.train import find_best_checkpoint
 from cqpes.utils.workspace import ExperimentWorkspace
-
 _ACT_MAP = {
     "linear": 0,
     "tanh": 1,
@@ -220,7 +219,7 @@ def run_export(
 
     import tf_levenberg_marquardt as lm
 
-    from cqpes.utils.model import build_network
+    from cqpes.utils.model import PIPNNForceModel, build_network
 
     # 1. existing workspace
     workspace = ExperimentWorkspace.from_existing(workdir_path)
@@ -260,8 +259,36 @@ def run_export(
     # 5. build model
     input_dim = len(phys_dict["p_min"]) - 1
     model = build_network(train_config, input_dim=input_dim)
-    model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
-    model_wrapper.build(input_shape=(1, input_dim))
+
+    # force-trained checkpoints store weights under PIPNNForceModel; the
+    # wrapper must mirror that nesting so the checkpoint matches by name
+    force_npy = os.path.join(workspace.path, "force.npy")
+
+    if os.path.exists(force_npy):
+        F = np.load(force_npy)
+        n_cart = F.shape[1] * 3
+
+        v_p_scale = (
+            phys_dict["V_max"] - phys_dict["V_min"]
+        ) / (phys_dict["p_max"][1:] - phys_dict["p_min"][1:])
+
+        eval_model = PIPNNForceModel(
+            network=model,
+            n_cart=n_cart,
+            v_p_scale=v_p_scale,
+            force_weight=train_config.fit.force_weight,
+        )
+    else:
+        eval_model = model
+
+    model_wrapper = lm.model.ModelWrapper(eval_model)  # type: ignore
+    model_wrapper.build(
+        input_shape=(
+            (1, input_dim + n_cart * input_dim)
+            if eval_model is not model
+            else (1, input_dim)
+        )
+    )
     model_wrapper.load_weights(best_ckpt_path)
 
     # 6. export
@@ -283,7 +310,7 @@ def run_export(
         )
     elif export_type == "potfit":
         weights_path, biases_path = _model2potfit(
-            model_wrapper.model,
+            model,
             export_dir,
             **phys_dict,
         )

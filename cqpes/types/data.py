@@ -13,6 +13,11 @@ class CQPESData:
     V: np.ndarray  # (N,)
     ref_energy: float
 
+    # forces in eV/Angstrom, F = -dV/dxyz
+    F: Optional[np.ndarray] = None
+    # d(p)/d(xyz) in 1/Angstrom, same PIP ordering as p
+    dp: Optional[np.ndarray] = None
+
     p_min: Optional[np.ndarray] = None
     p_max: Optional[np.ndarray] = None
     V_min: Optional[float] = None
@@ -29,6 +34,19 @@ class CQPESData:
             raise ValueError(
                 f"xyz size ({self.xyz.shape[0]}) mismatch with "
                 f"p size ({n_samples})."
+            )
+        if self.F is not None and self.F.shape != self.xyz.shape:
+            raise ValueError(
+                f"F size {self.F.shape} mismatch with "
+                f"xyz size {self.xyz.shape}."
+            )
+        if self.dp is not None and (
+            self.dp.shape[0] != n_samples
+            or self.dp.shape[2] != self.p.shape[1]
+        ):
+            raise ValueError(
+                f"dp size {self.dp.shape} mismatch with "
+                f"(n_samples={n_samples}, n_pip={self.p.shape[1]})."
             )
 
         if self.p_min is None:
@@ -90,12 +108,22 @@ class CQPESData:
 
             return np.load(f_path)
 
+        def _load_optional(name: str):
+            f_path = os.path.join(path, name)
+
+            if not os.path.exists(f_path):
+                return None
+
+            return np.load(f_path)
+
         return cls(
             xyz=_load("xyz.npy"),
             alpha=_load("alpha.npy").item(),
             p=_load("p.npy"),
             V=_load("V.npy"),
             ref_energy=_load("ref_energy.npy").item(),
+            F=_load_optional("force.npy"),
+            dp=_load_optional("dp.npy"),
             p_min=_load("p_min.npy"),
             p_max=_load("p_max.npy"),
             V_min=_load("V_min.npy").item(),
@@ -121,6 +149,12 @@ class CQPESData:
             "V_max.npy": self.V_max,
         }
 
+        if self.F is not None:
+            payload["force.npy"] = self.F
+
+        if self.dp is not None:
+            payload["dp.npy"] = self.dp
+
         for filename, data in payload.items():
             np.save(os.path.join(path, filename), data)
 
@@ -139,6 +173,8 @@ class CQPESData:
             p=self.p[index],
             V=self.V[index],
             ref_energy=self.ref_energy,
+            F=None if self.F is None else self.F[index],
+            dp=None if self.dp is None else self.dp[index],
             p_min=self.p_min,
             p_max=self.p_max,
             V_min=self.V_min,
