@@ -131,7 +131,7 @@ def run_train(
     print(f"  [{'LOAD':^10}] Loading dataset from {config.data}...")
 
     dataset = CQPESData.from_dir(config.data)
-    X, y, V = dataset.X[:, 1:], dataset.y, dataset.V
+    X, y, V = dataset.X[:, 1:], dataset.y.reshape(-1, 1), dataset.V
 
     n_samples = len(X)
 
