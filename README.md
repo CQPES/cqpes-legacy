@@ -85,7 +85,7 @@ options:
 
 CQPES provides a unified Command Line Interface (CLI) for the entire PES development lifecycle: from data preparation and training, to model evaluation and dynamic simulations.
 
-You can try the following steps in directory `example/CH4`!
+You can try the following steps in directory `examples/CH4`!
 
 ## Step 0. Choose Your Backend
 
@@ -120,7 +120,32 @@ Follow the interactive prompts to configure your molecular system (e.g., `4 1` f
 
 ### Step 2: Prepare Dataset
 
-Organize your raw structural data in standard xyz format and your corresponding energies (in Hartree) in a .dat file. Pack them into efficient NumPy arrays using the prepare command:
+Two input formats are supported for the raw data:
+
+**Legacy plain-text** - a standard xyz file plus a plain-text file of absolute electronic energies (one per frame, in **Hartree**). A reference energy is subtracted (`ref_energy` in the config, default: the dataset minimum) and the dataset stores `V = (E - E_ref)` in eV together with the reference:
+
+```json
+{
+    "xyz": "rawdata/CH4.xyz",
+    "energy": "rawdata/CH4_CCSD-T.dat",
+    "ref_energy": null,
+    "alpha": 1.0,
+    "output": "data"
+}
+```
+
+**extxyz** - a single self-describing extxyz file; point `xyz` and `energy` at the same file and the embedded energies (in **eV**, ASE convention) are used **as-is**: they are V, the quantity the PES reproduces verbatim - no reference is subtracted and `ref_energy` is ignored:
+
+```json
+{
+    "xyz": "rawdata/CH4.extxyz",
+    "energy": "rawdata/CH4.extxyz",
+    "alpha": 1.0,
+    "output": "data"
+}
+```
+
+Pack them into efficient NumPy arrays using the prepare command:
 
 `MSA`:
 
@@ -134,7 +159,7 @@ Organize your raw structural data in standard xyz format and your corresponding 
 (cqpes-env)$ cqpes prepare config/prepare.json --jaxpip MOL_x_y_z_k.json
 ```
 
-This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration. (Energy-only datasets can also come from a single extxyz file - point `xyz` and `energy` at the same file and the embedded energies are used as-is in eV.)
+This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration.
 
 ### Step 3: Model Training
 
@@ -145,6 +170,8 @@ Train the PIP-NN model using Levenberg-Marquardt (LM) or other optimizers define
 ```
 
 The trained models and training logs will be saved in a timestamped output path for model, e.g., `model_20260315_123751`.
+
+The training log reports physical-unit errors alongside the scaled LM loss: `E_MAE/E_RMSE` in meV and, for force-aided fits, `F_MAE/F_RMSE` in meV/Angstrom.
  
 #### Weighting Function
  
@@ -198,7 +225,7 @@ loss = MSE(ΔE / s_E) + force_weight · MSE(ΔF / F_rms)
 
 and `fit.force_weight` in `train.json` is a dataset-independent relative weight (`1` balances the two relative errors). The "physical" balance where a 1 meV/Å force error counts the same as a 1 meV energy error corresponds to `force_weight = (F_rms / s_E)²` with `s_E = (V_max - V_min) / 2` — about `98` for the CH₄ example below.
 
-See [`examples/CH4-with-forces`](examples/CH4-with-forces) for a complete run.
+See [`examples/CH4-with-forces`](examples/CH4-with-forces) (DeePMD data) and [`examples/CH4-MSA-2.0`](examples/CH4-MSA-2.0) (MSA-2.0 `geom.inp` data) for complete runs.
 
 ### Step 4. Model Evaluation
 
@@ -210,6 +237,8 @@ Evaluate the accuracy of your trained PES against the test set:
 
 This will automatically compute MAE, MSE, and RMSE for your training, validation, and test subsets. Additionally, fitting error scatter plots and histograms will be generated and saved in the model path for visual diagnostics.
 
+For datasets with forces, a second table reports force MAE/RMSE/MaxErr (meV/Angstrom) together with the per-frame force-norm error and the cosine similarity between predicted and reference force vectors.
+
 ### Step 5. Model Export
 
 CQPES can be exported in 2 formats:
@@ -217,7 +246,6 @@ CQPES can be exported in 2 formats:
 - Standard Keras `h5` format, required by `predict` and `run` commands if `MSA` backend used.
 - Experimental `JaxPIP` format, required by `predict` and `run` commands if `JaxPIP` backend used.
 - Legacy `potfit` plain text format, compatible with fortran interface for software like Polyrate, VENUS96C, or Caracal.
-- New
 
 ```bash
 (cqpes-env)$ cqpes export -t h5 model_20260315_123751/
@@ -258,11 +286,11 @@ from cqpes import CQPESPot, CQPESCalculator
 
 ### Fortran
 
-[`examples/CH4/interface/Fortran`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Fortran)
+[`examples/CH4/interface/Fortran`](https://github.com/CQPES/cqpes-legacy/tree/main/examples/CH4/interface/Fortran)
 
 ### Gaussian
 
-[`examples/CH4/interface/Gaussian`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/Gaussian)
+[`examples/CH4/interface/Gaussian`](https://github.com/CQPES/cqpes-legacy/tree/main/examples/CH4/interface/Gaussian)
 
 ### Polyrate
 
@@ -270,7 +298,7 @@ from cqpes import CQPESPot, CQPESCalculator
 
 ### VENUS96
 
-[`examples/CH4/interface/VENUS96C`](https://github.com/CQPES/cqpes-legacy/tree/main/example/CH4/interface/VENUS96C)
+[`examples/CH4/interface/VENUS96C`](https://github.com/CQPES/cqpes-legacy/tree/main/examples/CH4/interface/VENUS96C)
 
 ### Caracal
 
