@@ -46,12 +46,36 @@ class PrepareConfig:
                 )
 
         # check if reference energy exists
-        if self.ref_energy is None:
+        # (extxyz input is taken as V directly - no reference is applied)
+        if self.ref_energy is None and not self.use_extxyz:
             warnings.warn("Use minimum energy as reference energy.")
+        elif self.ref_energy is not None and self.use_extxyz:
+            warnings.warn(
+                "[extxyz] 'ref_energy' is ignored: extxyz energies are "
+                "used as-is (V), no reference is subtracted."
+            )
 
         # check if alpha > 0
         if self.alpha <= 0:
             raise ValueError(f"alpha must be greater than 0, got {self.alpha}.")
+
+        # input-format rules:
+        #   force set    -> force-aided fitting; xyz, energy and force must
+        #                   be the SAME extxyz file (coordinates, energies
+        #                   and forces are extracted from it)
+        #   force absent -> energy-only: separate xyz + Hartree energy .dat,
+        #                   OR a single extxyz file when xyz == energy
+        if self.force is not None and not (self.xyz == self.energy == self.force):
+            raise ValueError(
+                "[force] Force-aided fitting requires a single extxyz file. "
+                "Point 'xyz', 'energy' and 'force' at the same file; "
+                "coordinates, energies (eV) and forces (eV/Angstrom) are "
+                "extracted from it."
+            )
+
+    @property
+    def use_extxyz(self) -> bool:
+        return self.force is not None or self.xyz == self.energy
 
     @classmethod
     def from_json(

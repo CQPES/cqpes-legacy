@@ -10,16 +10,17 @@ gradients, shipped with
 The MSA-2.0 data file mixes three different unit systems on one line, and
 the third column group is a **gradient**, not a force:
 
-| quantity | unit in `geom.inp` | unit in CQPES |
+| quantity | unit in `geom.inp` | unit in the converted extxyz |
 |---|---|---|
 | coordinates | Angstrom | Angstrom |
-| energy | **Hartree** | Hartree (input), eV (internal) |
+| energy | **Hartree** (absolute E) | **eV** (used as-is: the PES reproduces these values verbatim) |
 | **gradient** dE/dxyz | **Hartree/Bohr** | **force** −dE/dxyz in **eV/Angstrom** |
 
-The conversion (applied exactly once, in `tools/convert_msa20.py`):
+The conversions (applied exactly once, in `tools/convert_msa20.py`):
 
 ```
-F[eV/A] = -grad[Hartree/Bohr] * Hartree / Bohr
+E[eV]    = E[Hartree] * Hartree
+F[eV/A]  = -grad[Hartree/Bohr] * Hartree / Bohr
 ```
 
 Two more traps this dataset ships with, both handled by the converter's
@@ -42,10 +43,9 @@ $ python3 tools/convert_msa20.py \
       --name CH4
 ```
 
-Outputs (also checked into `rawdata/` for convenience):
-`CH4.xyz` (Angstrom), `CH4_energy.dat` (Hartree), `CH4_force.dat`
-(eV/Angstrom, N x 3*Natoms, atom-major), plus the JaxPIP basis
-`MOL_4_1_4.json.gz`.
+Output (also checked into `rawdata/` for convenience):
+`rawdata/CH4.extxyz` — one self-describing file with coordinates,
+energies and forces, plus the JaxPIP basis `MOL_4_1_4.json.gz`.
 
 ## Workflow
 
@@ -59,6 +59,10 @@ $ cqpes train config/train.json
 # 3. evaluation (energy AND force metrics)
 $ cqpes test model_<timestamp>/
 ```
+
+In `config/prepare.json`, `xyz`, `energy` and `force` all point at the
+same extxyz file - coordinates, energies and forces are extracted from
+it, and the energy values are used as-is (no reference subtraction).
 
 `fit.force_weight: 1` balances the two O(1)-normalized residual blocks
 (energies min-max scaled, forces divided by their dataset RMS, here

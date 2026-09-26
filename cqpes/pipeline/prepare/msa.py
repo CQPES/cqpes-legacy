@@ -13,6 +13,7 @@ from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from cqpes.utils.msa import load_msa_so
 
 from . import hint_force_file
+from .extxyz import load_extxyz_dataset
 
 
 def v_calc_morse(
@@ -113,24 +114,6 @@ def v_calc_V(
     return V_list
 
 
-def load_force_file(
-    force_path: str,
-    n_samples: int,
-    n_atoms: int,
-) -> np.ndarray:
-    force_list = np.atleast_2d(np.loadtxt(force_path))
-
-    expected = (n_samples, 3 * n_atoms)
-
-    if force_list.shape != expected:
-        raise ValueError(
-            f"Force file '{force_path}' has shape {force_list.shape}, "
-            f"but expected {expected} (eV/Angstrom, atom-major)."
-        )
-
-    return force_list.reshape(n_samples, n_atoms, 3)
-
-
 def run_prepare_msa(
     config: PrepareConfig,
     msa_path: str,
@@ -141,18 +124,34 @@ def run_prepare_msa(
     msa = load_msa_so(msa_path)
     basis = msa.basis
 
-    # load xyz
-    mol_list = cast(List[Atoms], read(config.xyz, index=":"))
-    xyz_list = np.array([mol.get_positions() for mol in mol_list])
-
-    # parse energy
-    energy_list = np.loadtxt(config.energy)
-
-    if len(xyz_list) != len(energy_list):
-        raise ValueError(
-            f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
-            f"but energy has {len(energy_list)} entries."
+    if config.use_extxyz:
+        # extxyz energies are V (eV, taken as-is) - no reference shift;
+        # the stored reference stays 0.0 (Hartree) for export/inference
+        xyz_list, V_list, F_list, _ = load_extxyz_dataset(
+            config.xyz, want_forces=config.force is not None
         )
+        ref_energy = 0.0
+    else:
+        # legacy: xyz + absolute electronic energies in Hartree
+        mol_list = cast(List[Atoms], read(config.xyz, index=":"))
+        xyz_list = np.array([mol.get_positions() for mol in mol_list])
+
+        energy_list = np.loadtxt(config.energy)
+
+        if len(xyz_list) != len(energy_list):
+            raise ValueError(
+                f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
+                f"but energy has {len(energy_list)} entries."
+            )
+
+        if config.ref_energy is not None:
+            ref_energy = config.ref_energy
+        else:
+            ref_energy = float(energy_list.min())
+
+        V_list = v_calc_V(energy_list, ref_energy)
+
+        F_list = None
 
     # morse -> mono -> poly
     morse_list = v_calc_morse(xyz_list, config.alpha)
@@ -180,20 +179,6 @@ def run_prepare_msa(
             p_list=p_list,
             mono_list=mono_list,
         )
-
-    # ref energy
-    if config.ref_energy is not None:
-        ref_energy = config.ref_energy
-    else:
-        ref_energy = float(energy_list.min())
-
-    V_list = v_calc_V(energy_list, ref_energy)
-
-    # forces in eV/Angstrom
-    F_list = None
-
-    if config.force is not None:
-        F_list = load_force_file(config.force, len(xyz_list), xyz_list.shape[1])
 
     # dataset
     cqpes_data = CQPESData(

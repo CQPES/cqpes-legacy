@@ -1,7 +1,7 @@
 {
-    "xyz": "rawdata/CH4.xyz",
-    "energy": "rawdata/CH4_energy.dat",
-    "force": "rawdata/CH4_force.dat",
+    "xyz": "rawdata/CH4.extxyz",
+    "energy": "rawdata/CH4.extxyz",
+    "force": "rawdata/CH4.extxyz",
     "ref_energy": null,
     "alpha": 1.0,
     "output": "data"

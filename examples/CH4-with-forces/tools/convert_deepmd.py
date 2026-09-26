@@ -1,9 +1,9 @@
-"""Convert a DeePMD-kit dataset (set.000 npys) to CQPES rawdata.
+"""Convert a DeePMD-kit dataset (set.000 npys) to a single extxyz file.
 
-Produces:
-  - <name>.xyz          coordinates in Angstrom
-  - <name>_energy.dat   total energies in Hartree (one per frame)
-  - <name>_force.dat    forces in eV/Angstrom (N x 3*Natoms, atom-major)
+Produces one `extxyz` trajectory carrying coordinates (Angstrom),
+energies (eV) and forces (eV/Angstrom) - the format `cqpes prepare`
+expects for force-aided fitting (point 'xyz', 'energy' and 'force' at
+it in prepare.json).
 
 The box/virial entries of DeePMD datasets are ignored (CQPES is
 non-periodic only).
@@ -15,7 +15,7 @@ the front. The permutation is applied to coordinates and forces alike.
 
 Usage:
   python3 convert_deepmd.py \
-      --deepmd-dir ../rawdata/deepmd \
+      --deepmd-dir ../00.data \
       --out-dir ../rawdata \
       --name CH4
 """
@@ -26,7 +26,6 @@ import os
 import sys
 
 import numpy as np
-from ase.units import Hartree
 
 
 def load_split(split_dir):
@@ -123,33 +122,26 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    xyz_path = os.path.join(args.out_dir, f"{args.name}.xyz")
+    extxyz_path = os.path.join(args.out_dir, f"{args.name}.extxyz")
 
-    with open(xyz_path, "w") as f:
+    with open(extxyz_path, "w") as f:
         for frame in range(n_frames):
-            f.write(f"{n_atoms}\n\n")
+            f.write(f"{n_atoms}\n")
+            f.write(
+                f'Properties=species:S:1:pos:R:3:forces:R:3 '
+                f'energy={energies[frame]:.12f} pbc="F F F"\n'
+            )
 
-            for sym, pos in zip(atom_syms, coords[frame]):
+            for sym, pos, force in zip(atom_syms, coords[frame], forces[frame]):
                 f.write(
-                    f"{sym:<2} {pos[0]:>18.10f} "
-                    f"{pos[1]:>18.10f} {pos[2]:>18.10f}\n"
+                    f"{sym:<2} "
+                    f"{pos[0]:>18.12f} {pos[1]:>18.12f} {pos[2]:>18.12f} "
+                    f"{force[0]:>18.12f} {force[1]:>18.12f} {force[2]:>18.12f}\n"
                 )
 
-    energy_path = os.path.join(args.out_dir, f"{args.name}_energy.dat")
-
-    np.savetxt(energy_path, energies / Hartree, fmt="%.12f")
-
-    force_path = os.path.join(args.out_dir, f"{args.name}_force.dat")
-
-    np.savetxt(
-        force_path,
-        forces.reshape(n_frames, 3 * n_atoms),
-        fmt="%.12f",
-    )
-
-    print(f"  [DONE] {n_frames} frames -> {xyz_path}")
-    print(f"         energies (Hartree): {energy_path}")
-    print(f"         forces (eV/A):      {force_path}")
+    print(f"  [  CHECK  ] energy range: {energies.min():.6f} .. {energies.max():.6f} eV")
+    print(f"  [  CHECK  ] force RMS: {np.sqrt((forces**2).mean()):.4f} eV/A")
+    print(f"  [   DONE  ] {n_frames} frames -> {extxyz_path}")
 
 
 if __name__ == "__main__":

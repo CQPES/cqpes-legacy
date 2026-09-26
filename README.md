@@ -134,7 +134,7 @@ Organize your raw structural data in standard xyz format and your corresponding 
 (cqpes-env)$ cqpes prepare config/prepare.json --jaxpip MOL_x_y_z_k.json
 ```
 
-This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration.
+This handles the Morse-like variable transformations and structural unpacking automatically based on your JSON configuration. (Energy-only datasets can also come from a single extxyz file - point `xyz` and `energy` at the same file and the embedded energies are used as-is in eV.)
 
 ### Step 3: Model Training
 
@@ -158,19 +158,31 @@ If the flag is omitted, CQPES reports that uniform weighting is active.
 
 #### Force-Aided Fitting (Gradients)
 
-CQPES can fit energies and forces simultaneously. Provide a force file in your `prepare.json`:
+CQPES can fit energies and forces simultaneously. Force-aided fitting uses a **single extxyz file**: point `xyz`, `energy` and `force` at the same file in your `prepare.json`:
 
 ```json
 {
-    "xyz": "rawdata/CH4.xyz",
-    "energy": "rawdata/CH4_energy.dat",
-    "force": "rawdata/CH4_force.dat",
+    "xyz": "rawdata/CH4.extxyz",
+    "energy": "rawdata/CH4.extxyz",
+    "force": "rawdata/CH4.extxyz",
     "alpha": 1.0,
     "output": "data"
 }
 ```
 
-Forces are plain text (`N x 3*Natoms`, atom-major) in eV/Angstrom. During `prepare`, the PIP Jacobian `dp/dxyz` is stored in the dataset (`dbemsav` for the `MSA` backend, forward-mode AD for `JaxPIP`). During training, the force residuals
+Coordinates, energies and forces are extracted from the file, following ASE conventions: energies in eV, forces in eV/Angstrom. The energy values are used **as-is** (they are V, the quantity the PES reproduces verbatim - no reference is subtracted, and `ref_energy` is ignored in this mode). Structures with a periodic boundary are rejected unless the cell is a vacuum box much larger than the molecule (a warning is printed).
+
+Any tool that writes extxyz works - for a DeePMD-kit dataset, four lines of `dpdata` produce it:
+
+```python
+import dpdata
+from ase.io import write
+frames = [dpdata.LabeledSystem(d, fmt="deepmd/npy").to_ase_structure()
+          for d in ["00.data/training_data", "00.data/validation_data"]]
+write("dataset.extxyz", [a for split in frames for a in split])
+```
+
+During `prepare`, the PIP Jacobian `dp/dxyz` is stored in the dataset (`dbemsav` for the `MSA` backend, forward-mode AD for `JaxPIP`). During training, the force residuals
 
 ```
 F = -dV/dxyz = -(dV/dy · dX/dp · dp/dxyz) · (dy/dX)

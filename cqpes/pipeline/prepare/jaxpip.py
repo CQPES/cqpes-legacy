@@ -13,8 +13,8 @@ from jax import numpy as jnp
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from jaxpip.descriptor import PolynomialDescriptor
 
-from cqpes.pipeline.prepare.msa import load_force_file
 from . import hint_force_file
+from .extxyz import load_extxyz_dataset
 
 
 def v_calc_V(
@@ -62,18 +62,34 @@ def run_prepare_jaxpip(
         dtype=jnp.float64,
     )
 
-    # load xyz
-    mol_list = cast(List[Atoms], read(config.xyz, index=":"))
-    xyz_list = np.array([mol.get_positions() for mol in mol_list])
-
-    # parse energy
-    energy_list = np.loadtxt(config.energy)
-
-    if len(xyz_list) != len(energy_list):
-        raise ValueError(
-            f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
-            f"but energy has {len(energy_list)} entries."
+    if config.use_extxyz:
+        # extxyz energies are V (eV, taken as-is) - no reference shift;
+        # the stored reference stays 0.0 (Hartree) for export/inference
+        xyz_list, V_list, F_list, _ = load_extxyz_dataset(
+            config.xyz, want_forces=config.force is not None
         )
+        ref_energy = 0.0
+    else:
+        # legacy: xyz + absolute electronic energies in Hartree
+        mol_list = cast(List[Atoms], read(config.xyz, index=":"))
+        xyz_list = np.array([mol.get_positions() for mol in mol_list])
+
+        energy_list = np.loadtxt(config.energy)
+
+        if len(xyz_list) != len(energy_list):
+            raise ValueError(
+                f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
+                f"but energy has {len(energy_list)} entries."
+            )
+
+        if config.ref_energy is not None:
+            ref_energy = config.ref_energy
+        else:
+            ref_energy = float(energy_list.min())
+
+        V_list = v_calc_V(energy_list, ref_energy)
+
+        F_list = None
 
     # p
     p_list = np.asarray(jax.lax.map(descriptor, jnp.asarray(xyz_list)))
@@ -83,20 +99,6 @@ def run_prepare_jaxpip(
 
     if config.force is not None:
         dp_list = v_calc_dp(xyz_list, descriptor)
-
-    # ref energy
-    if config.ref_energy is not None:
-        ref_energy = config.ref_energy
-    else:
-        ref_energy = float(energy_list.min())
-
-    V_list = v_calc_V(energy_list, ref_energy)
-
-    # forces in eV/Angstrom
-    F_list = None
-
-    if config.force is not None:
-        F_list = load_force_file(config.force, len(xyz_list), xyz_list.shape[1])
 
     # dataset
     cqpes_data = CQPESData(

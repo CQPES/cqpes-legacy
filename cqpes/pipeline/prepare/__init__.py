@@ -25,6 +25,7 @@ def hint_force_file(config: PrepareConfig) -> None:
         f"input xyz: {', '.join(candidates)}"
     )
     print(
-        f"  {'':^12} To enable force-aided training, add a \"force\" "
-        f"entry (eV/Angstrom) to prepare.json."
+        f"  {'':^12} Force-aided fitting requires a single extxyz file "
+        f"carrying coordinates, energies and forces - point 'xyz', "
+        f"'energy' and 'force' at it in prepare.json."
     )
