@@ -1,0 +1,6 @@
+{
+    "xyz": "rawdata/CH4.extxyz",
+    "energy": "rawdata/CH4.extxyz",
+    "alpha": 1.0,
+    "output": "data_extxyz"
+}

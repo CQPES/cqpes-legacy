@@ -20,9 +20,12 @@ def run_test(
 
     _setup_tensorflow()
 
+    # lazy import (must run after _setup_tensorflow so tf.keras resolves
+    # to tf_keras; otherwise PIPNNForceModel becomes a Keras-3 model and
+    # the checkpoint loader silently skips it)
     import tf_levenberg_marquardt as lm
 
-    from cqpes.utils.model import build_network
+    from cqpes.utils.model import PIPNNForceModel, build_network
 
     # 1. existing workspace
     workspace = ExperimentWorkspace.from_existing(workdir_path)
@@ -58,14 +61,70 @@ def run_test(
     # 4. build network
     input_dim = len(phys_dict["p_min"]) - 1
     model = build_network(train_config, input_dim=input_dim)
-    model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
-    model_wrapper.build(input_shape=(1, input_dim))
-    model_wrapper.load_weights(best_ckpt_path)
 
     # 5. estimate error
     dataset = CQPESData.from_dir(train_config.data)
     X_scaled, V_true = dataset.X[:, 1:], dataset.V.reshape((-1, 1))
-    y = model_wrapper(X_scaled, training=False).numpy()
+
+    has_forces = dataset.F is not None
+
+    if has_forces:
+        if dataset.dp is None:
+            raise RuntimeError(
+                f"[FATAL] Dataset has forces but no 'dp.npy' in "
+                f"{train_config.data}. Please re-run 'cqpes prepare'."
+            )
+
+        force_weight = train_config.fit.force_weight
+        n_cart = dataset.F.shape[1] * 3
+
+        # must match the training-time normalization (see run_train)
+        f_scale = float(np.sqrt(np.mean(np.square(dataset.F))))
+
+        if f_scale < 1.0e-12:
+            f_scale = 1.0
+
+        v_p_scale = (
+            (
+                phys_dict["V_max"] - phys_dict["V_min"]
+            )
+            / (phys_dict["p_max"][1:] - phys_dict["p_min"][1:])
+        ) / f_scale
+
+        eval_model = PIPNNForceModel(
+            network=model,
+            n_cart=n_cart,
+            v_p_scale=v_p_scale,
+            force_weight=force_weight,
+        )
+
+        packed = np.concatenate(
+            [
+                X_scaled,
+                dataset.dp[:, :, 1:].reshape((len(X_scaled), -1)),
+            ],
+            axis=1,
+        )
+    else:
+        eval_model = model
+
+    # NOTE: the wrapper must mirror the training-time nesting so the
+    # checkpoint variables match by name (strict load)
+    model_wrapper = lm.model.ModelWrapper(eval_model)  # type: ignore
+    model_wrapper.build(input_shape=(1, packed.shape[1] if has_forces else input_dim))
+    model_wrapper.load_weights(best_ckpt_path)
+
+    if has_forces:
+        out = eval_model(packed, training=False).numpy()
+
+        y, F_pred = (
+            out[:, :1],
+            out[:, 1:] * f_scale / np.sqrt(force_weight),
+        )
+        F_true = dataset.F.reshape((-1, n_cart))
+    else:
+        y = model_wrapper(X_scaled, training=False).numpy()
+
     V_pred = CQPESData.unscale(y, phys_dict["V_min"], phys_dict["V_max"])
 
     errors_meV = (V_pred - V_true) * 1.0e03
@@ -74,6 +133,15 @@ def run_test(
 
     _export_metrics(V_true, V_pred, subset_idx_map, eval_dir, file_prefix)
     _plot_diagnostics(V_true, errors_meV, subset_idx_map, eval_dir, file_prefix)
+
+    if has_forces:
+        _export_force_metrics(
+            F_true, F_pred, subset_idx_map, eval_dir, file_prefix
+        )
+
+        _plot_force_scatter(
+            F_true, F_pred, subset_idx_map, eval_dir, file_prefix
+        )
 
 
 def _export_metrics(
@@ -193,6 +261,109 @@ def _plot_error_dist(
         plt.close(fig)
 
         print(f"  [{'SAVE':^10}] Histogram saved as: {plot_path}")
+
+
+def _export_force_metrics(
+    F_true: np.ndarray,
+    F_pred: np.ndarray,
+    subset_idx_map: Dict[str, np.ndarray],
+    output_dir: str,
+    file_prefix: str,
+) -> None:
+    # per-frame vector norms and cosine similarity
+    norm_true = np.linalg.norm(F_true, axis=1)
+    norm_pred = np.linalg.norm(F_pred, axis=1)
+
+    dot = np.sum(F_pred * F_true, axis=1)
+    denom = norm_pred * norm_true
+
+    # cosine is ill-defined for (near-)stationary frames
+    cos_mask = norm_true > 1.0e-02
+
+    cos_sim = np.where(
+        denom > 0.0,
+        dot / np.where(denom > 0.0, denom, 1.0),
+        np.nan,
+    )
+
+    stats = []
+    eval_indices = {**subset_idx_map, "Total": np.arange(len(F_true))}
+
+    for name, idx in eval_indices.items():
+        f_t, f_p = F_true[idx] * 1.0e03, F_pred[idx] * 1.0e03
+
+        mask = cos_mask[idx]
+
+        stats.append(
+            {
+                "Set": name,
+                "MAE (meV/A)": np.abs(f_t - f_p).mean(),
+                "RMSE (meV/A)": np.sqrt(np.square(f_t - f_p).mean()),
+                "MaxErr (meV/A)": np.abs(f_t - f_p).max(),
+                "|dF| MAE (meV/A)": np.abs(
+                    norm_pred[idx] * 1.0e03 - norm_true[idx] * 1.0e03
+                ).mean(),
+                "cos(F) mean": np.nanmean(np.where(mask, cos_sim[idx], np.nan)),
+                "cos(F) min": np.nanmin(np.where(mask, cos_sim[idx], np.nan)),
+            }
+        )
+
+    df = pd.DataFrame(stats)
+    csv_path = os.path.join(output_dir, f"{file_prefix}_force_metrics.csv")
+    df.to_csv(csv_path, index=False)
+
+    n_excluded = int((~cos_mask).sum())
+
+    print(f"  [{'METRICS':^10}] Force stats saved to: {csv_path}")
+
+    if n_excluded:
+        print(
+            f"  [{'METRICS':^10}] cos(F) skips {n_excluded} frame(s) with "
+            f"|F| <= 0.01 eV/A"
+        )
+
+    print("\n" + df.to_string(index=False) + "\n")
+
+
+def _plot_force_scatter(
+    F_true: np.ndarray,
+    F_pred: np.ndarray,
+    subset_idx_map: Dict[str, np.ndarray],
+    output_dir: str,
+    file_prefix: str,
+) -> None:
+    plot_path = os.path.join(output_dir, f"{file_prefix}_force_scatter.png")
+
+    print(f"  [{'PLOT':^10}] Generating force scatter plot...")
+
+    colors = {"Train": "b", "Valid": "g", "Test": "r"}
+
+    f_true_mag = np.linalg.norm(F_true, axis=1)
+    errors_meV_a = (F_pred - F_true) * 1.0e03
+    error_mag = np.linalg.norm(errors_meV_a, axis=1)
+
+    with plt.style.context(["science", "no-latex"]):
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=300)
+
+        for name, idx in subset_idx_map.items():
+            ax.scatter(
+                f_true_mag[idx],
+                error_mag[idx],
+                c=colors[name],
+                alpha=0.5,
+                label=name,
+                s=6.0,
+            )
+
+        ax.set_xlabel(r"$|\mathrm{Ab \ Initio \ Force}| \ \mathrm{(eV/\AA)}$")
+        ax.set_ylabel(r"$|\Delta \mathbf{F}| \ \mathrm{(meV/\AA)}$")
+
+        ax.legend(loc="upper right", frameon=True)
+
+        plt.savefig(plot_path, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"  [{'SAVE':^10}] Force scatter plot saved as: {plot_path}")
 
 
 def _plot_diagnostics(

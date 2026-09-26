@@ -27,6 +27,9 @@ class FitConfig:
     lr: float = 0.001
     epoch: int = 1000
     batch_size: int = -1  # full batch
+    # relative weight of the force term: MSE(E) + force_weight * MSE(F)
+    # ignored when the dataset has no force data
+    force_weight: float = 1.0
 
 
 @dataclass

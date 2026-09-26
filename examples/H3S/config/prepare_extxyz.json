@@ -1,0 +1,6 @@
+{
+    "xyz": "./rawdata/H3S.extxyz",
+    "energy": "./rawdata/H3S.extxyz",
+    "alpha": 1.0,
+    "output": "./data_extxyz"
+}

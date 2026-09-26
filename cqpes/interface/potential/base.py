@@ -60,6 +60,26 @@ class CQPESBasePot(ABC):
 
         return forces
 
+    def get_energy_and_forces(
+        self,
+        xyz: np.ndarray,
+        return_au: bool = False,
+        force_mode: Optional[str] = None,
+        **kwargs,
+    ) -> tuple:
+        """Default: two independent passes. Backends override with a fused
+        single-forward implementation."""
+        energy = self.get_energy(xyz, return_au=return_au)
+
+        forces = self.get_forces(
+            xyz,
+            return_au=return_au,
+            force_mode=force_mode,
+            **kwargs,
+        )
+
+        return energy, forces
+
     def get_forces_numerical(
         self,
         xyz: np.ndarray,

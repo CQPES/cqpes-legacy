@@ -9,6 +9,8 @@ exp/
 
 # cqpes
 *.npy
+examples/CH4-with-forces/00.data/OUTCAR
+examples/CH4-with-forces/PyMSA-Builder/
 model_*/
 *.png
 *.csv

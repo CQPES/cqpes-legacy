@@ -27,20 +27,27 @@ def run_predict(
         xyz_batch = np.array([mol.get_positions() for mol in mol_list])
 
         print(f"  [{'SAMPLES':^10}] Loaded {num_frames} frames.")
-        print(f"  [{'COMPUTE':^10}] Neural Network forward passing (Energy)...")
 
-        energies = pot.get_energy(xyz_batch, return_au=return_au)
+        if calc_forces:
+            print(
+                f"  [{'COMPUTE':^10}] Engine resolving energies & forces "
+                f"({force_mode})..."
+            )
+
+            energies, forces_batch = pot.get_energy_and_forces(
+                xyz_batch,
+                return_au=return_au,
+                force_mode=force_mode,
+            )
+        else:
+            print(f"  [{'COMPUTE':^10}] Neural Network forward passing (Energy)...")
+
+            energies = pot.get_energy(xyz_batch, return_au=return_au)
 
         if np.isscalar(energies):
             energies = [energies]
 
         if calc_forces:
-            print(
-                f"  [{'COMPUTE':^10}] Engine resolving forces ({force_mode})..."
-            )
-
-            forces_batch = pot.get_forces(xyz_batch, return_au=return_au)
-
             if forces_batch.ndim == 2:
                 forces_batch = np.expand_dims(forces_batch, axis=0)
 

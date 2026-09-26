@@ -1,9 +1,9 @@
 import glob
 import os
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import numpy as np
-from ase.units import Hartree
+from ase.units import Bohr, Hartree
 
 from cqpes.interface.potential import CQPESBasePot
 from cqpes.utils.workspace import ExperimentWorkspace
@@ -128,3 +128,43 @@ class CQPESJaxPIPPot(CQPESBasePot):
             return forces_np[0]
 
         return forces_np
+
+    def get_energy_and_forces(
+        self,
+        xyz: np.ndarray,
+        return_au: bool = False,
+        force_mode: Optional[str] = None,
+        **kwargs,
+    ) -> tuple:
+        target_mode = (force_mode or self.force_mode).lower()
+
+        if target_mode != "analytical":
+            return super().get_energy_and_forces(
+                xyz,
+                return_au=return_au,
+                force_mode=force_mode,
+                **kwargs,
+            )
+
+        # lazy import
+        from jax import numpy as jnp
+
+        xyz_arr = self._standardize_coordinates(xyz)
+        xyz_jx = jnp.asarray(xyz_arr)
+
+        energy_jx, forces_jx = self._jit_energy_and_forces_batch(xyz_jx)
+
+        energy = np.asarray(energy_jx)
+        forces = np.asarray(forces_jx)
+
+        if return_au:
+            energy = (energy / Hartree) + self.ref_energy
+            forces = forces * (Bohr / Hartree)
+
+        if energy.size == 1 and not isinstance(xyz, list):
+            energy = energy.item()
+
+        if len(xyz_arr) == 1 and not isinstance(xyz, list):
+            forces = forces[0]
+
+        return energy, forces

@@ -12,26 +12,25 @@ from scipy.spatial import distance
 from cqpes.types import CQPESData, PrepareConfig, PrepareSummary
 from cqpes.utils.msa import load_msa_so
 
+from . import hint_force_file
+from .extxyz import load_extxyz_dataset
+
+
+def v_calc_morse(
+    xyz_list: np.ndarray,
+    alpha: float,
+) -> np.ndarray:
+    r_list = np.array([distance.pdist(xyz) for xyz in xyz_list])
+
+    return np.exp(-1.0 * r_list / alpha)
+
 
 def v_calc_p(
     xyz_list: np.ndarray,
     alpha: float,
     basis: ModuleType,
 ) -> np.ndarray:
-    def _calc_morse(
-        r: np.ndarray,
-        alpha: float,
-    ) -> np.ndarray:
-        return np.exp(-1.0 * r / alpha)
-
-    r_list = np.array([distance.pdist(xyz) for xyz in xyz_list])
-
-    morse_list = np.apply_along_axis(
-        func1d=_calc_morse,
-        axis=1,
-        arr=r_list,
-        alpha=alpha,
-    )
+    morse_list = v_calc_morse(xyz_list, alpha)
 
     mono_list = np.apply_along_axis(
         func1d=basis.evmono,
@@ -48,6 +47,64 @@ def v_calc_p(
     return poly_list
 
 
+def build_drdx(
+    pos: np.ndarray,
+    r_i: np.ndarray,
+    r_j: np.ndarray,
+) -> np.ndarray:
+    """d(r_pair)/d(xyz) as a Fortran-ordered (3*Natoms, N_pairs) matrix."""
+    n_atoms = pos.shape[0]
+    n_carts = 3 * n_atoms
+    n_pairs = len(r_i)
+
+    diff = pos[r_i] - pos[r_j]
+    dist = np.linalg.norm(diff, axis=1)
+    unit_vecs = diff / dist[:, np.newaxis]
+
+    drdx = np.zeros((n_carts, n_pairs), dtype=np.float64, order="F")
+
+    for k in range(n_pairs):
+        r_idx, c_idx = r_i[k], r_j[k]
+        uv = unit_vecs[k]
+        drdx[3 * r_idx : 3 * r_idx + 3, k] = uv
+        drdx[3 * c_idx : 3 * c_idx + 3, k] = -uv
+
+    return drdx
+
+
+def v_calc_dp(
+    xyz_list: np.ndarray,
+    alpha: float,
+    gradient: ModuleType,
+    p_list: np.ndarray,
+    mono_list: np.ndarray,
+) -> np.ndarray:
+    """d(p)/d(xyz) with shape (N, 3*Natoms, Npip), via MSA dbemsav."""
+    n_configs, n_atoms, _ = xyz_list.shape
+    n_carts = 3 * n_atoms
+
+    r_i, r_j = np.triu_indices(n_atoms, k=1)
+
+    dp_list = np.zeros(
+        (n_configs, n_carts, p_list.shape[1]),
+        dtype=np.float64,
+    )
+
+    for i in range(n_configs):
+        drdx = build_drdx(xyz_list[i], r_i, r_j)
+
+        for j in range(n_carts):
+            # Fortran 1-based cartesian indexing
+            dp_list[i, j] = gradient.dbemsav(
+                drdx,
+                mono_list[i],
+                p_list[i],
+                j + 1,
+            )
+
+    return dp_list
+
+
 def v_calc_V(
     energy_list: np.ndarray,
     ref_energy: float,
@@ -61,37 +118,67 @@ def run_prepare_msa(
     config: PrepareConfig,
     msa_path: str,
 ) -> PrepareSummary:
+    hint_force_file(config)
+
     # load msa so
     msa = load_msa_so(msa_path)
     basis = msa.basis
 
-    # load xyz
-    mol_list = cast(List[Atoms], read(config.xyz, index=":"))
-    xyz_list = np.array([mol.get_positions() for mol in mol_list])
-
-    # parse energy
-    energy_list = np.loadtxt(config.energy)
-
-    if len(xyz_list) != len(energy_list):
-        raise ValueError(
-            f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
-            f"but energy has {len(energy_list)} entries."
+    if config.use_extxyz:
+        # extxyz energies are V (eV, taken as-is) - no reference shift;
+        # the stored reference stays 0.0 (Hartree) for export/inference
+        xyz_list, V_list, F_list, _ = load_extxyz_dataset(
+            config.xyz, want_forces=config.force is not None
         )
+        ref_energy = 0.0
+    else:
+        # legacy: xyz + absolute electronic energies in Hartree
+        mol_list = cast(List[Atoms], read(config.xyz, index=":"))
+        xyz_list = np.array([mol.get_positions() for mol in mol_list])
 
-    # p
-    p_list = v_calc_p(
-        xyz_list=xyz_list,
-        alpha=config.alpha,
-        basis=basis,
+        energy_list = np.loadtxt(config.energy)
+
+        if len(xyz_list) != len(energy_list):
+            raise ValueError(
+                f"Dimension mismatch: xyz has {len(xyz_list)} frames, "
+                f"but energy has {len(energy_list)} entries."
+            )
+
+        if config.ref_energy is not None:
+            ref_energy = config.ref_energy
+        else:
+            ref_energy = float(energy_list.min())
+
+        V_list = v_calc_V(energy_list, ref_energy)
+
+        F_list = None
+
+    # morse -> mono -> poly
+    morse_list = v_calc_morse(xyz_list, config.alpha)
+
+    mono_list = np.apply_along_axis(
+        func1d=basis.evmono,
+        axis=1,
+        arr=morse_list,
     )
 
-    # ref energy
-    if config.ref_energy is not None:
-        ref_energy = config.ref_energy
-    else:
-        ref_energy = float(energy_list.min())
+    p_list = np.apply_along_axis(
+        func1d=basis.evpoly,
+        axis=1,
+        arr=mono_list,
+    )
 
-    V_list = v_calc_V(energy_list, ref_energy)
+    # d(p)/d(xyz), only needed for force-aided training
+    dp_list = None
+
+    if config.force is not None:
+        dp_list = v_calc_dp(
+            xyz_list=xyz_list,
+            alpha=config.alpha,
+            gradient=msa.gradient,
+            p_list=p_list,
+            mono_list=mono_list,
+        )
 
     # dataset
     cqpes_data = CQPESData(
@@ -100,6 +187,8 @@ def run_prepare_msa(
         p=p_list,
         V=V_list,
         ref_energy=ref_energy,
+        F=F_list,
+        dp=dp_list,
     )
 
     output_path = cqpes_data.to_dir(config.output)
