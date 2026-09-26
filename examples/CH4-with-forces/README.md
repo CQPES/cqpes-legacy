@@ -10,6 +10,9 @@ from an `OUTCAR` — not checked into the repository): 160 training frames +
 40 validation frames, energies in eV, forces in eV/Angstrom, atom order
 `[H, H, H, H, C]`.
 
+Source: the [DeePMD-kit Hands-on Tutorial (v2.0.3)](https://tutorials.deepmodeling.com/zh-cn/latest/Tutorials/DeePMD-kit/learnDoc/Handson-Tutorial%28v2.0.3%29.html),
+CH<sub>4</sub> example data.
+
 The converter packs both splits into a single extxyz file - the format
 `cqpes prepare` expects for force-aided fitting:
 
