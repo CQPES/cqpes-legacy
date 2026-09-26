@@ -57,11 +57,18 @@ $ cqpes test model_<timestamp>/
 ```
 
 In `config/train.json`, `fit.force_weight` is the relative weight of the
-force term in the loss:
+force term in the loss. Both residual blocks are normalized to O(1)
+first — energies via min-max scaling to `[-1, 1]`, forces by their
+dataset RMS (DeePMD-style `sigma_F`) — so
 
 ```
-loss = MSE(E) + force_weight * MSE(F)
+loss = MSE(ΔE / s_E) + force_weight · MSE(ΔF / F_rms)
 ```
+
+with `s_E = (V_max - V_min) / 2`. `force_weight: 1` balances the two
+relative errors and is dataset-independent; the "physical" balance
+where a 1 meV/Å force error counts as a 1 meV energy error corresponds
+to `force_weight = (F_rms / s_E)²` (≈ 98 for this dataset).
 
 To train energies only, remove the `force` entry from `prepare.json` and
 re-run prepare (any dataset without `force.npy`/`dp.npy` automatically

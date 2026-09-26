@@ -176,7 +176,15 @@ Forces are plain text (`N x 3*Natoms`, atom-major) in eV/Angstrom. During `prepa
 F = -dV/dxyz = -(dV/dy · dX/dp · dp/dxyz) · (dy/dX)
 ```
 
-are assembled per sample — `dy/dX` via an analytic matmul chain, the constant factors folded into a scale vector — and appended to the LM residual vector, so `tf_levenberg_marquardt` fits energies and forces in one shot (fully FP64). The relative weight of the force term is controlled by `fit.force_weight` in `train.json` (`loss = MSE(E) + force_weight * MSE(F)`).
+are assembled per sample — `dy/dX` via an analytic matmul chain, the constant factors folded into a scale vector — and appended to the LM residual vector, so `tf_levenberg_marquardt` fits energies and forces in one shot (fully FP64).
+
+Both residual blocks are normalized to O(1) before fitting: energies via the min-max scaling to `[-1, 1]`, forces by their dataset RMS (DeePMD-style `sigma_F`), so the loss is
+
+```
+loss = MSE(ΔE / s_E) + force_weight · MSE(ΔF / F_rms)
+```
+
+and `fit.force_weight` in `train.json` is a dataset-independent relative weight (`1` balances the two relative errors). The "physical" balance where a 1 meV/Å force error counts the same as a 1 meV energy error corresponds to `force_weight = (F_rms / s_E)²` with `s_E = (V_max - V_min) / 2` — about `98` for the CH₄ example below.
 
 See [`examples/CH4-with-forces`](examples/CH4-with-forces) for a complete run.
 

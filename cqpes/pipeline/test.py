@@ -78,9 +78,18 @@ def run_test(
         force_weight = train_config.fit.force_weight
         n_cart = dataset.F.shape[1] * 3
 
+        # must match the training-time normalization (see run_train)
+        f_scale = float(np.sqrt(np.mean(np.square(dataset.F))))
+
+        if f_scale < 1.0e-12:
+            f_scale = 1.0
+
         v_p_scale = (
-            phys_dict["V_max"] - phys_dict["V_min"]
-        ) / (phys_dict["p_max"][1:] - phys_dict["p_min"][1:])
+            (
+                phys_dict["V_max"] - phys_dict["V_min"]
+            )
+            / (phys_dict["p_max"][1:] - phys_dict["p_min"][1:])
+        ) / f_scale
 
         eval_model = PIPNNForceModel(
             network=model,
@@ -108,7 +117,10 @@ def run_test(
     if has_forces:
         out = eval_model(packed, training=False).numpy()
 
-        y, F_pred = out[:, :1], out[:, 1:] / np.sqrt(force_weight)
+        y, F_pred = (
+            out[:, :1],
+            out[:, 1:] * f_scale / np.sqrt(force_weight),
+        )
         F_true = dataset.F.reshape((-1, n_cart))
     else:
         y = model_wrapper(X_scaled, training=False).numpy()
@@ -258,11 +270,29 @@ def _export_force_metrics(
     output_dir: str,
     file_prefix: str,
 ) -> None:
+    # per-frame vector norms and cosine similarity
+    norm_true = np.linalg.norm(F_true, axis=1)
+    norm_pred = np.linalg.norm(F_pred, axis=1)
+
+    dot = np.sum(F_pred * F_true, axis=1)
+    denom = norm_pred * norm_true
+
+    # cosine is ill-defined for (near-)stationary frames
+    cos_mask = norm_true > 1.0e-02
+
+    cos_sim = np.where(
+        denom > 0.0,
+        dot / np.where(denom > 0.0, denom, 1.0),
+        np.nan,
+    )
+
     stats = []
     eval_indices = {**subset_idx_map, "Total": np.arange(len(F_true))}
 
     for name, idx in eval_indices.items():
         f_t, f_p = F_true[idx] * 1.0e03, F_pred[idx] * 1.0e03
+
+        mask = cos_mask[idx]
 
         stats.append(
             {
@@ -270,6 +300,11 @@ def _export_force_metrics(
                 "MAE (meV/A)": np.abs(f_t - f_p).mean(),
                 "RMSE (meV/A)": np.sqrt(np.square(f_t - f_p).mean()),
                 "MaxErr (meV/A)": np.abs(f_t - f_p).max(),
+                "|dF| MAE (meV/A)": np.abs(
+                    norm_pred[idx] * 1.0e03 - norm_true[idx] * 1.0e03
+                ).mean(),
+                "cos(F) mean": np.nanmean(np.where(mask, cos_sim[idx], np.nan)),
+                "cos(F) min": np.nanmin(np.where(mask, cos_sim[idx], np.nan)),
             }
         )
 
@@ -277,7 +312,16 @@ def _export_force_metrics(
     csv_path = os.path.join(output_dir, f"{file_prefix}_force_metrics.csv")
     df.to_csv(csv_path, index=False)
 
+    n_excluded = int((~cos_mask).sum())
+
     print(f"  [{'METRICS':^10}] Force stats saved to: {csv_path}")
+
+    if n_excluded:
+        print(
+            f"  [{'METRICS':^10}] cos(F) skips {n_excluded} frame(s) with "
+            f"|F| <= 0.01 eV/A"
+        )
+
     print("\n" + df.to_string(index=False) + "\n")
 
 

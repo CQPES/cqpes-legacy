@@ -111,7 +111,11 @@ def run_train(
     from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
     from tensorflow.keras.callbacks import TensorBoard  # type: ignore
 
-    from cqpes.utils.model import PIPNNForceModel, build_network
+    from cqpes.utils.model import (
+        PhysicalResidualMetric,
+        PIPNNForceModel,
+        build_network,
+    )
 
     # 1. create context
     workspace = ExperimentWorkspace.create(config.workdir)
@@ -136,9 +140,12 @@ def run_train(
     _save_indices(subset_idx_map, workspace.path)
 
     # 3.5 force-aided fitting context
-    # residual layout: [y | sqrt(force_weight) * F] per sample, with
-    # F = -dV/dxyz assembled inside PIPNNForceModel from the constant
-    # chain dV/dy * dX/dp (folded into v_p_scale) and dp/dxyz (packed input)
+    # residual layout: [y | sqrt(force_weight) * F / f_scale] per sample.
+    # Both blocks are brought to O(1) (energy via min-max scaling, forces
+    # via their own RMS), so force_weight is a dataset-independent relative
+    # weight:  loss = MSE(dy) + force_weight * MSE(F / f_scale)
+    # F/f_scale is assembled inside PIPNNForceModel by folding 1/f_scale
+    # into v_p_scale; dp/dxyz is the constant packed input.
     has_forces = dataset.F is not None
 
     if has_forces:
@@ -149,6 +156,13 @@ def run_train(
             )
 
         force_weight = config.fit.force_weight
+
+        # RMS of the ab initio forces; also the conversion between the
+        # model's normalized force block and physical eV/Angstrom
+        f_scale = float(np.sqrt(np.mean(np.square(dataset.F))))
+
+        if f_scale < 1.0e-12:
+            f_scale = 1.0
 
         n_cart = dataset.F.shape[1] * 3
 
@@ -164,7 +178,8 @@ def run_train(
             [
                 y.reshape((-1, 1)),
                 np.sqrt(force_weight)
-                * dataset.F.reshape((n_samples, -1)),
+                * dataset.F.reshape((n_samples, -1))
+                / f_scale,
             ],
             axis=1,
         )
@@ -172,6 +187,7 @@ def run_train(
         print(
             f"  [{'FORCE':^10}] Force-aided fitting enabled | "
             f"force_weight: {force_weight} | "
+            f"force RMS: {f_scale:.4f} eV/A | "
             f"residuals per sample: {1 + n_cart}"
         )
     else:
@@ -196,7 +212,7 @@ def run_train(
         model = PIPNNForceModel(
             network=build_network(config, input_dim=X.shape[1]),
             n_cart=n_cart,
-            v_p_scale=v_p_scale,
+            v_p_scale=v_p_scale / f_scale,
             force_weight=force_weight,
         )
 
@@ -209,6 +225,28 @@ def run_train(
     # lm optimizer
     model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
 
+    # physical-unit progress metrics (the LM loss itself stays in scaled
+    # units): dV = dy * s_v, and the force block is sqrt(w) * F / f_scale
+    s_v = (dataset.V_max - dataset.V_min) / 2.0
+
+    e_unit = s_v * 1.0e3  # meV per scaled unit
+
+    metrics = [
+        tf.keras.metrics.MeanSquaredError(name="mse"),
+        PhysicalResidualMetric((0, 1), e_unit, "E_MAE(meV)"),
+        PhysicalResidualMetric((0, 1), e_unit, "E_RMSE(meV)", reduction="rmse"),
+    ]
+
+    if has_forces:
+        f_unit = f_scale / np.sqrt(force_weight) * 1.0e3  # meV/A per scaled unit
+
+        metrics += [
+            PhysicalResidualMetric((1, None), f_unit, "F_MAE(meV/A)"),
+            PhysicalResidualMetric(
+                (1, None), f_unit, "F_RMSE(meV/A)", reduction="rmse"
+            ),
+        ]
+
     model_wrapper.compile(
         optimizer=tf.keras.optimizers.SGD(learning_rate=config.fit.lr),
         loss=lm.loss.MeanSquaredError(),
@@ -218,7 +256,7 @@ def run_train(
         ),
         solve_method=config.lm.solve_method,
         jacobian_max_num_rows=config.lm.jacobian_max_num_rows,
-        metrics=[tf.keras.metrics.MeanSquaredError(name="mse")],
+        metrics=metrics,
         weighted_metrics=[tf.keras.metrics.MeanSquaredError(name="wmse")],
     )
 
