@@ -261,6 +261,8 @@ def run_train(
         max_t_retries=config.lm.max_t_retries,
         rnc_order=config.lm.rnc_order,
         fd_h_rel=config.lm.fd_h_rel,
+        alpha_ga=config.lm.alpha_ga,
+        lambda_min=config.lm.lambda_min,
         metrics=metrics,
         weighted_metrics=[tf.keras.metrics.MeanSquaredError(name="wmse")],
     )

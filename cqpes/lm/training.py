@@ -20,13 +20,15 @@ class Trainer:
         solve_method: str = 'qr',
         jacobian_max_num_rows: int = 100,
         experimental_use_pfor: bool = True,
-        step_control: str = 'classic',
+        step_control: str = 'trust_ratio',
         eta_acc: float = 0.1,
         max_t_retries: int = 3,
         beta_min: float = 0.3,
         beta_max: float = 0.5,
-        rnc_order: int = 1,
+        rnc_order: int = 2,
         fd_h_rel: float = 1e-5,
+        alpha_ga: float = 0.75,
+        lambda_min: float = 1e-8,
     ):
         """Initializes `Trainer` instance.
 
@@ -103,6 +105,8 @@ class Trainer:
             raise ValueError('rnc_order must be 1 or 2.')
         self.rnc_order = rnc_order
         self.fd_h_rel = fd_h_rel
+        self.alpha_ga = alpha_ga
+        self.lambda_min = lambda_min
         # Accepted curve length of the last train step ('trust_ratio' mode only);
         # exposed for logging.
         self.last_t_acc = None
@@ -420,6 +424,9 @@ class Trainer:
         self.last_t_acc = None
         self.last_g2_ratio = None
 
+        # Floor for the lambda/3 branch: max(min_value, lambda_min).
+        lambda_floor = max(float(min_value), float(self.lambda_min))
+
         # Direction state for the current damping factor. The damped system is
         # LU-factorized once per direction and reused for every curve-length
         # trial (classic path keeps re-solving per attempt).
@@ -542,7 +549,7 @@ class Trainer:
                         tf.scalar_mul(2.0, damping_factor), max_value
                     )
                 elif rho_acc > 0.75:
-                    damping_factor = tf.maximum(damping_factor / 3.0, min_value)
+                    damping_factor = tf.maximum(damping_factor / 3.0, lambda_floor)
                 break
 
             # Trial rejected: restore the old variables.
@@ -651,6 +658,17 @@ class Trainer:
         d2 = tf.linalg.cholesky_solve(chol, tf.scalar_mul(-float(normalization_factor), b2))
         if not bool(tf.reduce_all(tf.math.is_finite(d2))):
             return None, 1.0
+
+        # Soft geodesic trust gate: cap ||d2/2|| at alpha_ga * ||d1|| so a
+        # null-space-amplified curvature term cannot outrun the main step in
+        # sparsely sampled directions at tiny lambda (Runge-type overshoot).
+        # alpha_ga <= 0 disables the gate.
+        d1_norm = float(tf.reduce_sum(tf.square(d1))) ** 0.5
+        half_d2_norm = 0.5 * float(tf.reduce_sum(tf.square(d2))) ** 0.5
+        if self.alpha_ga > 0.0 and half_d2_norm > 0.0:
+            scale = min(1.0, self.alpha_ga * d1_norm / half_d2_norm)
+            if scale < 1.0:
+                d2 = tf.scalar_mul(scale, d2)
 
         # Free a-priori curve-length guess (quadratic model of phi(t)).
         phi1 = float(tf.reduce_sum(r0 * R1))

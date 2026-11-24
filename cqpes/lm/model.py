@@ -33,11 +33,13 @@ class ModelWrapper(keras.Model):
         solve_method: str = 'qr',
         jacobian_max_num_rows: int = 100,
         experimental_use_pfor: bool = True,
-        step_control: str = 'classic',
+        step_control: str = 'trust_ratio',
         eta_acc: float = 0.1,
         max_t_retries: int = 3,
-        rnc_order: int = 1,
+        rnc_order: int = 2,
         fd_h_rel: float = 1e-5,
+        alpha_ga: float = 0.75,
+        lambda_min: float = 1e-8,
         metrics=None,
         loss_weights=None,
         weighted_metrics=None,
@@ -68,6 +70,8 @@ class ModelWrapper(keras.Model):
             max_t_retries=max_t_retries,
             rnc_order=rnc_order,
             fd_h_rel=fd_h_rel,
+            alpha_ga=alpha_ga,
+            lambda_min=lambda_min,
         )
 
     def train_step(self, data):

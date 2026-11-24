@@ -42,13 +42,24 @@ class LMConfig:
     #   "classic"     strict new_loss < loss with damping retry (upstream behavior)
     #   "trust_ratio" trust-ratio acceptance + curve-length backtracking
     #                 (RNC-LM arXiv:2607.07623 Sec. 4.4, Eqs. 34-40)
-    step_control: Literal["classic", "trust_ratio"] = "classic"
+    # Defaults = validated production configuration (devlog §12/§14):
+    # trust-ratio step control + geodesic curvature (K=2) + dual safety valves.
+    # Escape hatches: step_control="classic" reproduces legacy LM verbatim;
+    # rnc_order=1 disables the curvature term; lambda_min <= 1e-10 disables the
+    # damping floor.
+    step_control: Literal["classic", "trust_ratio"] = "trust_ratio"
     eta_acc: float = 0.1  # acceptance threshold for the trust ratio rho
     max_t_retries: int = 3  # curve-length backtracking trials before lambda grows
     # geodesic-acceleration order (trust_ratio mode): 1 = straight-line update,
     # 2 = adds the second-order correction c2 = G^-1 (-J^T R2) (RNC-LM Eq. 22)
-    rnc_order: int = 1
+    rnc_order: int = 2
     fd_h_rel: float = 1e-5  # relative FD step for R2 (h = fd_h_rel * |theta|/|d1|)
+    # soft geodesic trust gate: cap ||d2/2|| at alpha_ga * ||d1|| (<=0 disables;
+    # 1.0 = no gate). Guards against null-space amplification of c2 at tiny
+    # lambda in sparsely sampled directions (Runge-type overshoot).
+    alpha_ga: float = 0.75
+    lambda_min: float = 1e-8  # floor for the lambda/3 branch (Eq. 40);
+    # validated sweet spot on H3S sweep {1e-10..1e-7} (devlog §14)
 
 
 @dataclass
