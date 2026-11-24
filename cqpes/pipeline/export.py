@@ -217,7 +217,7 @@ def run_export(
 
     _setup_tensorflow()
 
-    import tf_levenberg_marquardt as lm
+    from cqpes import lm  # vendored tf_levenberg_marquardt fork
 
     from cqpes.utils.model import PIPNNForceModel, build_network
 

@@ -23,7 +23,7 @@ def run_test(
     # lazy import (must run after _setup_tensorflow so tf.keras resolves
     # to tf_keras; otherwise PIPNNForceModel becomes a Keras-3 model and
     # the checkpoint loader silently skips it)
-    import tf_levenberg_marquardt as lm
+    from cqpes import lm  # vendored tf_levenberg_marquardt fork
 
     from cqpes.utils.model import PIPNNForceModel, build_network
 

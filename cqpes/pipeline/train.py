@@ -107,7 +107,7 @@ def run_train(
     _setup_tensorflow(use_gpu=True)
 
     import tensorflow as tf
-    import tf_levenberg_marquardt as lm
+    from cqpes import lm  # vendored tf_levenberg_marquardt fork (LM step control)
     from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
     from tensorflow.keras.callbacks import TensorBoard  # type: ignore
 
@@ -256,6 +256,9 @@ def run_train(
         ),
         solve_method=config.lm.solve_method,
         jacobian_max_num_rows=config.lm.jacobian_max_num_rows,
+        step_control=config.lm.step_control,
+        eta_acc=config.lm.eta_acc,
+        max_t_retries=config.lm.max_t_retries,
         metrics=metrics,
         weighted_metrics=[tf.keras.metrics.MeanSquaredError(name="wmse")],
     )

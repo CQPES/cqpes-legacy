@@ -38,6 +38,13 @@ class LMConfig:
     fletcher: bool = False
     solve_method: Literal["solve", "lstsq"] = "solve"
     jacobian_max_num_rows: int = 500
+    # step acceptance controller:
+    #   "classic"     strict new_loss < loss with damping retry (upstream behavior)
+    #   "trust_ratio" trust-ratio acceptance + curve-length backtracking
+    #                 (RNC-LM arXiv:2607.07623 Sec. 4.4, Eqs. 34-40)
+    step_control: Literal["classic", "trust_ratio"] = "classic"
+    eta_acc: float = 0.1  # acceptance threshold for the trust ratio rho
+    max_t_retries: int = 3  # curve-length backtracking trials before lambda grows
 
 
 @dataclass
