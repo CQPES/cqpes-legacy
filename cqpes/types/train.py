@@ -45,6 +45,10 @@ class LMConfig:
     step_control: Literal["classic", "trust_ratio"] = "classic"
     eta_acc: float = 0.1  # acceptance threshold for the trust ratio rho
     max_t_retries: int = 3  # curve-length backtracking trials before lambda grows
+    # geodesic-acceleration order (trust_ratio mode): 1 = straight-line update,
+    # 2 = adds the second-order correction c2 = G^-1 (-J^T R2) (RNC-LM Eq. 22)
+    rnc_order: int = 1
+    fd_h_rel: float = 1e-5  # relative FD step for R2 (h = fd_h_rel * |theta|/|d1|)
 
 
 @dataclass

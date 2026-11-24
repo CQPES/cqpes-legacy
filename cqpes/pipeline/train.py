@@ -259,6 +259,8 @@ def run_train(
         step_control=config.lm.step_control,
         eta_acc=config.lm.eta_acc,
         max_t_retries=config.lm.max_t_retries,
+        rnc_order=config.lm.rnc_order,
+        fd_h_rel=config.lm.fd_h_rel,
         metrics=metrics,
         weighted_metrics=[tf.keras.metrics.MeanSquaredError(name="wmse")],
     )

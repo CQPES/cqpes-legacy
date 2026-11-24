@@ -25,6 +25,8 @@ class Trainer:
         max_t_retries: int = 3,
         beta_min: float = 0.3,
         beta_max: float = 0.5,
+        rnc_order: int = 1,
+        fd_h_rel: float = 1e-5,
     ):
         """Initializes `Trainer` instance.
 
@@ -97,9 +99,14 @@ class Trainer:
         self.max_t_retries = max_t_retries
         self.beta_min = beta_min
         self.beta_max = beta_max
+        if rnc_order not in (1, 2):
+            raise ValueError('rnc_order must be 1 or 2.')
+        self.rnc_order = rnc_order
+        self.fd_h_rel = fd_h_rel
         # Accepted curve length of the last train step ('trust_ratio' mode only);
         # exposed for logging.
         self.last_t_acc = None
+        self.last_g2_ratio = None
 
         # Define and select linear system equation solver.
         def qr(matrix: Tensor, rhs: Tensor) -> Tensor:
@@ -411,50 +418,80 @@ class Trainer:
         t_retries = 0
         accepted = False
         self.last_t_acc = None
+        self.last_g2_ratio = None
+
+        # Direction state for the current damping factor. The damped system is
+        # LU-factorized once per direction and reused for every curve-length
+        # trial (classic path keeps re-solving per attempt).
+        chol = None
+        updates = None
+        d2 = None  # K=2 curve coefficient of t^2/2 (see helper below)
+        need_new_direction = True
 
         while tf.constant(True, dtype=tf.bool):
             update_computed = False
-            try:
-                # Apply the damping to the Gauss-Newton Hessian approximation.
-                JJ_damped = self.damping_algorithm.apply(damping_factor, JJ)
+            if need_new_direction:
+                try:
+                    # Apply the damping to the Gauss-Newton Hessian approximation.
+                    JJ_damped = self.damping_algorithm.apply(damping_factor, JJ)
 
-                # Compute the LM direction: (JJ + lam*D) * updates = rhs.
-                updates = compute_gauss_newton(J, JJ_damped, rhs)
-            except Exception as e:
-                print(f'An error occurred: {e}')
-            else:
-                if tf.reduce_all(tf.math.is_finite(updates)):
-                    update_computed = True
-
-            if update_computed:
-                # sigma = <updates, G updates> = -phi'(0) / lr^2 of the applied curve.
-                if overdetermined:
-                    # The solve gives G * updates == rhs, so sigma = updates' rhs.
-                    sigma = tf.reduce_sum(updates * rhs)
+                    # Compute the LM direction: (JJ + lam*D) * updates = rhs.
+                    # Cholesky: JJ_damped is SPD; a factorization failure here
+                    # simply raises and the handler bumps the damping factor.
+                    chol = tf.linalg.cholesky(JJ_damped)
+                    updates = tf.linalg.cholesky_solve(chol, rhs)
+                except Exception as e:
+                    print(f'An error occurred: {e}')
                 else:
-                    Ju = tf.linalg.matmul(J, updates)
-                    sigma = normalization_factor * tf.reduce_sum(Ju * Ju)
+                    if tf.reduce_all(tf.math.is_finite(updates)):
+                        update_computed = True
+                        need_new_direction = False
 
-                if not (sigma > 0.0):
-                    update_computed = False
+                if update_computed:
+                    # sigma = <updates, G updates> = -phi'(0) / lr^2 of the applied curve.
+                    if overdetermined:
+                        # The solve gives G * updates == rhs, so sigma = updates' rhs.
+                        sigma = tf.reduce_sum(updates * rhs)
+                    else:
+                        Ju = tf.linalg.matmul(J, updates)
+                        sigma = normalization_factor * tf.reduce_sum(Ju * Ju)
 
-            if not update_computed:
-                # Linear system failed or direction is not a descent direction:
-                # regularize harder and rebuild the direction.
-                if attempt >= attempts:
-                    break
-                damping_factor = self.damping_algorithm.increase(damping_factor, loss)
-                if self.damping_algorithm.stop_training(damping_factor, loss):
-                    stop_training = True
-                    break
-                t = 1.0
-                t_retries = 0
-                continue
+                    if not (sigma > 0.0):
+                        update_computed = False
+                        need_new_direction = True
+
+                if not update_computed:
+                    # Linear system failed or direction is not a descent direction:
+                    # regularize harder and rebuild the direction.
+                    if attempt >= attempts:
+                        break
+                    damping_factor = self.damping_algorithm.increase(damping_factor, loss)
+                    if self.damping_algorithm.stop_training(damping_factor, loss):
+                        stop_training = True
+                        break
+                    t = 1.0
+                    t_retries = 0
+                    continue
+
+                if self.rnc_order == 2:
+                    # Second-order geodesic coefficient + a-priori curve-length
+                    # guess from the free R_k inner products (RNC-LM Eq. 22).
+                    d2, t = self._rnc2_coefficients(
+                        inputs, targets, outputs, updates, lr, chol,
+                        normalization_factor,
+                    )
+                    if d2 is None:
+                        t = 1.0
 
             attempt += 1
 
-            # Trial of curve length t: apply -lr * t * updates to the variables.
-            trial_updates = tf.split(tf.squeeze(updates, axis=-1) * t, self._splits)
+            # Trial of curve length t: displacement = t*d1 + 0.5*t^2*d2 with
+            # d1 = -lr*updates; the optimizer applies w <- w - lr*z, so feed
+            # z = t*updates - 0.5*t^2*d2/lr.
+            z_flat = tf.squeeze(updates, axis=-1) * t
+            if d2 is not None:
+                z_flat = z_flat - 0.5 * t * t * tf.squeeze(d2, axis=-1) / lr
+            trial_updates = tf.split(z_flat, self._splits)
             trial_updates = [
                 tf.reshape(update, shape)
                 for update, shape in zip(trial_updates, self._shapes)
@@ -531,6 +568,8 @@ class Trainer:
             if self.damping_algorithm.stop_training(damping_factor, loss):
                 stop_training = True
                 break
+            need_new_direction = True
+            d2 = None
             t = 1.0
             t_retries = 0
 
@@ -542,6 +581,91 @@ class Trainer:
         # Update the damping_factor for the next train_step.
         self.damping_factor.assign(damping_factor)
         return loss, outputs, attempt, stop_training
+
+    def _rnc2_coefficients(
+        self,
+        inputs: Tensor,
+        targets: Tensor,
+        outputs: Tensor,
+        updates: Tensor,
+        lr: float,
+        chol: Tensor,
+        normalization_factor: Tensor,
+    ):
+        """Second-order geodesic coefficient (RNC-LM Eq. 22) via central FD.
+
+        Estimates R2 = d^2/dt^2 r(theta + t*d1)|_0 along the applied direction
+        d1 = -lr * updates with a central difference (FP64), then solves
+        G * d2 = -J^T R2 with the existing Cholesky factorization (one
+        back-substitution; J^T R2 obtained as a single VJP with R2 frozen).
+        The lr scaling of d1 carries through R2 into d2 automatically.
+        Returns (d2, t_guess): d2 is the curve coefficient of t^2/2, and
+        t_guess minimizes the quadratic model of phi(t) built from the free
+        inner products <R0, R1> and ||R1||^2 + <R0, R2>, so the first trial
+        is informed instead of blind t = 1.
+        """
+        variables = self.model.trainable_variables
+
+        theta_sq = float(sum(float(tf.reduce_sum(tf.square(v))) for v in variables))
+        d1_sq = float(tf.reduce_sum(tf.square(updates))) * lr * lr
+        if not (theta_sq > 0.0) or not (d1_sq > 0.0):
+            return None, 1.0
+        h = self.fd_h_rel * (theta_sq ** 0.5) / (d1_sq ** 0.5)
+
+        d1 = tf.scalar_mul(-lr, updates)
+        delta = tf.scalar_mul(h, d1)
+        delta_splits = [
+            tf.reshape(d, shape)
+            for d, shape in zip(
+                tf.split(tf.squeeze(delta, axis=-1), self._splits), self._shapes
+            )
+        ]
+
+        r0 = self.loss.residuals(targets, outputs)
+
+        for v, d in zip(variables, delta_splits):
+            v.assign_add(d)
+        r_plus = self.loss.residuals(targets, self.model(inputs, training=False))
+        self.restore_variables()
+        for v, d in zip(variables, delta_splits):
+            v.assign_sub(d)
+        r_minus = self.loss.residuals(targets, self.model(inputs, training=False))
+        self.restore_variables()
+
+        R1 = (r_plus - r_minus) / (2.0 * h)
+        R2 = (r_plus - 2.0 * r0 + r_minus) / (h * h)
+        if not bool(tf.reduce_all(tf.math.is_finite(R2))):
+            return None, 1.0
+
+        # b2 = J^T R2 with R2 held constant: one VJP through the residual map.
+        with tf.GradientTape() as tape:
+            rv = self.loss.residuals(targets, self.model(inputs, training=False))
+            proj = tf.reduce_sum(rv * tf.stop_gradient(R2))
+        b2_parts = tape.gradient(proj, variables)
+        if b2_parts is None or any(p is None for p in b2_parts):
+            return None, 1.0
+        b2 = tf.concat(
+            [tf.reshape(p, (-1, 1)) for p in b2_parts], axis=0
+        )
+
+        d2 = tf.linalg.cholesky_solve(chol, tf.scalar_mul(-float(normalization_factor), b2))
+        if not bool(tf.reduce_all(tf.math.is_finite(d2))):
+            return None, 1.0
+
+        # Free a-priori curve-length guess (quadratic model of phi(t)).
+        phi1 = float(tf.reduce_sum(r0 * R1))
+        phi2 = float(tf.reduce_sum(R1 * R1) + tf.reduce_sum(r0 * R2))
+        t = 1.0
+        if phi2 > 0.0 and phi1 < 0.0:
+            t = min(max(0.9 * (-phi1 / phi2), 0.05), 1.0)
+
+        d1_sq = float(tf.reduce_sum(tf.square(d1)))
+        self.last_g2_ratio = (
+            float(tf.reduce_sum(tf.square(d2))) ** 0.5 / (d1_sq ** 0.5)
+            if d1_sq > 0.0
+            else None
+        )
+        return d2, t
 
     def _compute_num_outputs(self, inputs: Tensor, targets: Tensor) -> Tensor:
         input_shape = inputs.shape[1:]  # Exclude batch dimension

@@ -36,6 +36,8 @@ class ModelWrapper(keras.Model):
         step_control: str = 'classic',
         eta_acc: float = 0.1,
         max_t_retries: int = 3,
+        rnc_order: int = 1,
+        fd_h_rel: float = 1e-5,
         metrics=None,
         loss_weights=None,
         weighted_metrics=None,
@@ -64,6 +66,8 @@ class ModelWrapper(keras.Model):
             step_control=step_control,
             eta_acc=eta_acc,
             max_t_retries=max_t_retries,
+            rnc_order=rnc_order,
+            fd_h_rel=fd_h_rel,
         )
 
     def train_step(self, data):
@@ -85,6 +89,8 @@ class ModelWrapper(keras.Model):
         if self.trainer.step_control == 'trust_ratio':
             t_acc = self.trainer.last_t_acc
             logs['t_acc'] = -1.0 if t_acc is None else t_acc
+            g2r = self.trainer.last_g2_ratio
+            logs['g2_ratio'] = -1.0 if g2r is None else g2r
 
         metrics = self.compute_metrics(x, y, y_pred, sample_weight)
 
