@@ -107,7 +107,6 @@ def run_train(
     _setup_tensorflow(use_gpu=True)
 
     import tensorflow as tf
-    from cqpes import lm  # vendored tf_levenberg_marquardt fork (LM step control)
     from tensorflow.keras.callbacks import ModelCheckpoint  # type: ignore
     from tensorflow.keras.callbacks import TensorBoard  # type: ignore
 
@@ -222,7 +221,42 @@ def run_train(
 
         model = build_network(config, input_dim=X.shape[1])
 
-    # lm optimizer
+    # lm optimizer: engine routing by config key
+    #   "lm"     -> upstream tf_levenberg_marquardt package (legacy, verbatim)
+    #   "rnc-lm" -> vendored cqpes.lm fork (trust-ratio + geodesic curvature)
+    if config.rnc_lm is not None:
+        from cqpes import lm  # vendored fork
+
+        lm_cfg = config.rnc_lm
+        compile_kwargs = dict(
+            damping_algorithm=lm.damping.DampingAlgorithm(
+                adaptive_scaling=lm_cfg.adaptive_scaling,
+                fletcher=lm_cfg.fletcher,
+            ),
+            solve_method=lm_cfg.solve_method,
+            jacobian_max_num_rows=lm_cfg.jacobian_max_num_rows,
+            step_control=lm_cfg.step_control,
+            eta_acc=lm_cfg.eta_acc,
+            max_t_retries=lm_cfg.max_t_retries,
+            rnc_order=lm_cfg.rnc_order,
+            fd_h_rel=lm_cfg.fd_h_rel,
+            alpha_ga=lm_cfg.alpha_ga,
+            lambda_min=lm_cfg.lambda_min,
+        )
+    else:
+        import tf_levenberg_marquardt as lm  # upstream package, untouched
+
+        lm_cfg = config.lm
+        compile_kwargs = dict(
+            damping_algorithm=lm.damping.DampingAlgorithm(
+                adaptive_scaling=lm_cfg.adaptive_scaling,
+                fletcher=lm_cfg.fletcher,
+            ),
+            solve_method=lm_cfg.solve_method,
+            jacobian_max_num_rows=lm_cfg.jacobian_max_num_rows,
+        )
+    print(f"  [{'ENGINE':^10}] {lm.__name__}")
+
     model_wrapper = lm.model.ModelWrapper(model)  # type: ignore
 
     # physical-unit progress metrics (the LM loss itself stays in scaled
@@ -250,21 +284,9 @@ def run_train(
     model_wrapper.compile(
         optimizer=tf.keras.optimizers.SGD(learning_rate=config.fit.lr),
         loss=lm.loss.MeanSquaredError(),
-        damping_algorithm=lm.damping.DampingAlgorithm(
-            adaptive_scaling=config.lm.adaptive_scaling,
-            fletcher=config.lm.fletcher,
-        ),
-        solve_method=config.lm.solve_method,
-        jacobian_max_num_rows=config.lm.jacobian_max_num_rows,
-        step_control=config.lm.step_control,
-        eta_acc=config.lm.eta_acc,
-        max_t_retries=config.lm.max_t_retries,
-        rnc_order=config.lm.rnc_order,
-        fd_h_rel=config.lm.fd_h_rel,
-        alpha_ga=config.lm.alpha_ga,
-        lambda_min=config.lm.lambda_min,
         metrics=metrics,
         weighted_metrics=[tf.keras.metrics.MeanSquaredError(name="wmse")],
+        **compile_kwargs,
     )
 
     # 6. config callbacks

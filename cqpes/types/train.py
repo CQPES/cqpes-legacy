@@ -34,23 +34,31 @@ class FitConfig:
 
 @dataclass
 class LMConfig:
+    """Legacy LM engine ("lm" key) -- routes to the upstream
+    tf_levenberg_marquardt package, byte-identical to main-branch behavior."""
+
     adaptive_scaling: bool = True
     fletcher: bool = False
     solve_method: Literal["solve", "lstsq"] = "solve"
     jacobian_max_num_rows: int = 500
-    # step acceptance controller:
-    #   "classic"     strict new_loss < loss with damping retry (upstream behavior)
-    #   "trust_ratio" trust-ratio acceptance + curve-length backtracking
-    #                 (RNC-LM arXiv:2607.07623 Sec. 4.4, Eqs. 34-40)
-    # Defaults = validated production configuration (devlog §12/§14):
-    # trust-ratio step control + geodesic curvature (K=2) + dual safety valves.
-    # Escape hatches: step_control="classic" reproduces legacy LM verbatim;
-    # rnc_order=1 disables the curvature term; lambda_min <= 1e-10 disables the
-    # damping floor.
+
+
+@dataclass
+class RNCLMConfig:
+    """New LM engine ("rnc-lm" key) -- routes to the vendored cqpes.lm fork
+    (trust-ratio step control + geodesic curvature, RNC-LM arXiv:2607.07623).
+    Defaults = validated production configuration (devlog §12/§14).
+    Escape hatches: rnc_order=1 disables the curvature term;
+    lambda_min <= 1e-10 disables the damping floor."""
+
+    adaptive_scaling: bool = True
+    fletcher: bool = False
+    solve_method: Literal["solve", "lstsq"] = "solve"
+    jacobian_max_num_rows: int = 500
     step_control: Literal["classic", "trust_ratio"] = "trust_ratio"
     eta_acc: float = 0.1  # acceptance threshold for the trust ratio rho
     max_t_retries: int = 3  # curve-length backtracking trials before lambda grows
-    # geodesic-acceleration order (trust_ratio mode): 1 = straight-line update,
+    # geodesic-acceleration order: 1 = straight-line update,
     # 2 = adds the second-order correction c2 = G^-1 (-J^T R2) (RNC-LM Eq. 22)
     rnc_order: int = 2
     fd_h_rel: float = 1e-5  # relative FD step for R2 (h = fd_h_rel * |theta|/|d1|)
@@ -69,6 +77,9 @@ class TrainConfig:
     network: NetworkConfig = field(default_factory=NetworkConfig)
     fit: FitConfig = field(default_factory=FitConfig)
     lm: LMConfig = field(default_factory=LMConfig)
+    # new optimizer engine; mutually exclusive with `lm` at the JSON level
+    # (JSON key: "rnc-lm")
+    rnc_lm: RNCLMConfig | None = None
     split: List[float] = field(default_factory=lambda: [0.9, 0.05, 0.05])
 
     def __post_init__(self) -> None:
@@ -118,6 +129,21 @@ class TrainConfig:
         with open(config_json, "r") as f:
             d = json.load(f)
 
+        lm_raw = d.get("lm")
+        rnc_raw = d.get("rnc-lm")
+
+        if lm_raw is not None and rnc_raw is not None:
+            raise ValueError(
+                'Config cannot specify both "lm" and "rnc-lm": '
+                "the two LM engines are mutually exclusive. Pick one."
+            )
+
+        rnc_lm = (
+            RNCLMConfig(**_filter_kwargs(RNCLMConfig, rnc_raw))
+            if rnc_raw is not None
+            else None
+        )
+
         return cls(
             data=d["data"],
             workdir=d["workdir"],
@@ -125,6 +151,7 @@ class TrainConfig:
                 **_filter_kwargs(NetworkConfig, d.get("network", {}))
             ),
             fit=FitConfig(**_filter_kwargs(FitConfig, d.get("fit", {}))),
-            lm=LMConfig(**_filter_kwargs(LMConfig, d.get("lm", {}))),
+            lm=LMConfig(**_filter_kwargs(LMConfig, lm_raw if lm_raw else {})),
+            rnc_lm=rnc_lm,
             split=d.get("split", [0.9, 0.05, 0.05]),
         )
