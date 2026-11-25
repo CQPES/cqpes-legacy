@@ -131,6 +131,12 @@ class TrainConfig:
 
         lm_raw = d.get("lm")
         rnc_raw = d.get("rnc-lm")
+        # empty dicts carry no information: treat them as absent so
+        # placeholder keys never trigger the mutual-exclusion error
+        if isinstance(lm_raw, dict) and not lm_raw:
+            lm_raw = None
+        if isinstance(rnc_raw, dict) and not rnc_raw:
+            rnc_raw = None
 
         if lm_raw is not None and rnc_raw is not None:
             raise ValueError(
