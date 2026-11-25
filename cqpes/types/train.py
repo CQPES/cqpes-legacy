@@ -76,7 +76,7 @@ class TrainConfig:
     workdir: str = field(metadata={"must_not_exist": False})
     network: NetworkConfig = field(default_factory=NetworkConfig)
     fit: FitConfig = field(default_factory=FitConfig)
-    lm: LMConfig = field(default_factory=LMConfig)
+    lm: LMConfig | None = field(default_factory=LMConfig)
     # new optimizer engine; mutually exclusive with `lm` at the JSON level
     # (JSON key: "rnc-lm")
     rnc_lm: RNCLMConfig | None = None
@@ -144,6 +144,13 @@ class TrainConfig:
             else None
         )
 
+        if lm_raw is not None:
+            lm = LMConfig(**_filter_kwargs(LMConfig, lm_raw))
+        elif rnc_raw is None:
+            lm = LMConfig()  # backward-compatible default when neither key given
+        else:
+            lm = None  # "rnc-lm" present: the legacy engine is not in play
+
         return cls(
             data=d["data"],
             workdir=d["workdir"],
@@ -151,7 +158,7 @@ class TrainConfig:
                 **_filter_kwargs(NetworkConfig, d.get("network", {}))
             ),
             fit=FitConfig(**_filter_kwargs(FitConfig, d.get("fit", {}))),
-            lm=LMConfig(**_filter_kwargs(LMConfig, lm_raw if lm_raw else {})),
+            lm=lm,
             rnc_lm=rnc_lm,
             split=d.get("split", [0.9, 0.05, 0.05]),
         )
