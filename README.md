@@ -232,7 +232,7 @@ See [`examples/CH4-with-forces`](examples/CH4-with-forces) (DeePMD data) and [`e
 The `train.json` config selects the LM engine by top-level config key. The two keys are **mutually exclusive** (specifying both raises a `ValueError`); if neither is present, the legacy `lm` defaults are used, so every pre-2.4 config runs exactly as before.
 
 - `"lm"` -- the upstream [`tf_levenberg_marquardt`](https://github.com/fyusr/tf_levenberg_marquardt) package, unchanged: classic damped LM with retry.
-- `"rnc-lm"` -- the bundled RNC-LM engine: trust-ratio step control with curve-length backtracking and ρ-driven damping, second-order geodesic curvature correction, and two safety valves (soft geodesic trust gate `alpha_ga`, damping floor `lambda_min`). Reuses a single Cholesky factorization per direction for all coefficient solves.
+- `"rnc-lm"` -- the bundled RNC-LM engine (Ref. (6)): trust-ratio step control with curve-length backtracking and ρ-driven damping, second-order geodesic curvature correction, and two safety valves (soft geodesic trust gate `alpha_ga`, damping floor `lambda_min`). Reuses a single Cholesky factorization per direction for all coefficient solves.
 
 The selected engine is declared at the top of the training log (`[ENGINE] tf_levenberg_marquardt` or `[ENGINE] cqpes.lm`).
 
@@ -264,8 +264,6 @@ Field notes:
 - `rnc_order` -- `1` = straight-line update; `2` (default) adds the second-order geodesic correction c2 = G⁻¹(−JᵀR2) (R2 estimated by an FP64 central difference, JᵀR2 by one frozen-cotangent VJP; both reuse the same Cholesky factor).
 - `lambda_min` -- floor for the λ/3 damping branch. Response sweep on H + H₂S: 1e-10 overfits (validation detaches, MaxErr spikes), 1e-7 caps the fit depth; **1e-8 is the validated sweet spot** and the default.
 - `alpha_ga` -- soft gate capping ‖d2/2‖ at `alpha_ga·‖d1‖`, guarding null-space overshoot of the curvature term in sparsely sampled directions.
-
-Validation summary (full-batch, 1000 epochs): legacy configs rerun bit-identical under the engine split. On an N₂ + H₂ MB-PIP-NN residual fit (80,610 frames), all three `rnc-lm` seeds beat the legacy LM champion on Total RMSE (13.31 / 16.30 / 16.56 vs 17.51, across a 17.51–23.01 legacy seed spread), and the median seed improved on every holdout row (Valid RMSE 30.6 vs 37.0, Test RMSE 30.2 vs 34.9, Test MaxErr 498 vs 857). See Ref. (6).
 
 ### Step 4. Model Evaluation
 
