@@ -227,6 +227,46 @@ and `fit.force_weight` in `train.json` is a dataset-independent relative weight 
 
 See [`examples/CH4-with-forces`](examples/CH4-with-forces) (DeePMD data) and [`examples/CH4-MSA-2.0`](examples/CH4-MSA-2.0) (MSA-2.0 `geom.inp` data) for complete runs.
 
+#### Optimizer Engines: `lm` vs `rnc-lm`
+
+The `train.json` config selects the LM engine by top-level config key. The two keys are **mutually exclusive** (specifying both raises a `ValueError`); if neither is present, the legacy `lm` defaults are used, so every pre-2.4 config runs exactly as before.
+
+- `"lm"` -- the upstream [`tf_levenberg_marquardt`](https://github.com/fyusr/tf_levenberg_marquardt) package, unchanged: classic damped LM with retry.
+- `"rnc-lm"` -- the bundled RNC-LM engine: trust-ratio step control with curve-length backtracking and ρ-driven damping, second-order geodesic curvature correction, and two safety valves (soft geodesic trust gate `alpha_ga`, damping floor `lambda_min`). Reuses a single Cholesky factorization per direction for all coefficient solves.
+
+The selected engine is declared at the top of the training log (`[ENGINE] tf_levenberg_marquardt` or `[ENGINE] cqpes.lm`).
+
+Example `rnc-lm` section (validated production defaults; fields not listed take these values):
+
+```json
+{
+    "network": { "layers": [32, 64], "activation": "tanh" },
+    "fit":     { "lr": 0.5, "epoch": 1000, "batch_size": -1 },
+    "rnc-lm": {
+        "adaptive_scaling": true,
+        "fletcher": false,
+        "solve_method": "solve",
+        "jacobian_max_num_rows": 1000,
+        "step_control": "trust_ratio",
+        "eta_acc": 0.1,
+        "max_t_retries": 3,
+        "rnc_order": 2,
+        "fd_h_rel": 1e-5,
+        "alpha_ga": 0.75,
+        "lambda_min": 1e-8
+    }
+}
+```
+
+Field notes:
+
+- `step_control` -- `"trust_ratio"` (default): the accepted LM direction is realized as a curved path θ(t) = θ + t·d1 + t²/2·d2 with curve length t ∈ (0, 1]; on overshoot the length is shortened by quadratic interpolation (three retries at most) before the damping factor is touched. `"classic"` restores the upstream strict-decrease + damping-retry behavior verbatim.
+- `rnc_order` -- `1` = straight-line update; `2` (default) adds the second-order geodesic correction c2 = G⁻¹(−JᵀR2) (R2 estimated by an FP64 central difference, JᵀR2 by one frozen-cotangent VJP; both reuse the same Cholesky factor).
+- `lambda_min` -- floor for the λ/3 damping branch. Response sweep on H + H₂S: 1e-10 overfits (validation detaches, MaxErr spikes), 1e-7 caps the fit depth; **1e-8 is the validated sweet spot** and the default.
+- `alpha_ga` -- soft gate capping ‖d2/2‖ at `alpha_ga·‖d1‖`, guarding null-space overshoot of the curvature term in sparsely sampled directions.
+
+Validation summary (full-batch, 1000 epochs): legacy configs rerun bit-identical under the engine split. On an N₂ + H₂ MB-PIP-NN residual fit (80,610 frames), all three `rnc-lm` seeds beat the legacy LM champion on Total RMSE (13.31 / 16.30 / 16.56 vs 17.51, across a 17.51–23.01 legacy seed spread), and the median seed improved on every holdout row (Valid RMSE 30.6 vs 37.0, Test RMSE 30.2 vs 34.9, Test MaxErr 498 vs 857). See Ref. (6).
+
 ### Step 4. Model Evaluation
 
 Evaluate the accuracy of your trained PES against the test set:
@@ -309,3 +349,4 @@ from cqpes import CQPESPot, CQPESCalculator
 - (3) Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. _J. Chem. Phys._ **2013**, _139_ (5). https://doi.org/10.1063/1.4817187.
 - (4) Li, J.; Jiang, B.; Guo, H. Permutation Invariant Polynomial Neural Network Approach to Fitting Potential Energy Surfaces. II. Four-Atom Systems. _J. Chem. Phys._ **2013**, _139_ (20). https://doi.org/10.1063/1.4832697.
 - (5) Li, J.; Song, K.; Li, J. CQPES: A GPU-Aided Software Package for Developing Full-Dimensional Accurate Potential Energy Surfaces by Permutation-Invariant-Polynomial Neural Network. _Chemistry (Basel)_ **2025**, _7_ (6), 201. https://doi.org/10.3390/chemistry7060201.
+- (6) Liu, J.; Zhang, D. H. Higher-Order Geometric Updates for Levenberg-Marquardt Method via Riemann Normal Coordinates. arXiv [cs.LG], 2026. https://doi.org/10.48550/arXiv.2607.07623.
